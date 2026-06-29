@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: linear-gradient(160deg, #0b1120 0%, #1a2332 40%, #0d1628 100%);
+  display: flex; align-items: center; justify-content: center;
+  height: 100vh; width: 100vw;
+  font-family: 'Segoe UI', -apple-system, Arial, sans-serif;
+  overflow: hidden; user-select: none;
+  position: relative;
+}
+
+body::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 50%, rgba(96,165,250,0.04) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+#intro-overlay {
+  position: fixed; inset: 0; z-index: 999999;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #0b1120 0%, #1a2332 40%, #0d1628 100%);
+  transition: opacity 0.5s ease;
+}
+
+#intro-overlay.hidden {
+  opacity: 0; pointer-events: none;
+}
+
+.container {
+  text-align: center;
+  animation: fadeScale 1.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeScale {
+  from { opacity: 0; transform: scale(0.92) translateY(30px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.logo-wrap {
+  width: 180px; height: 180px; margin: 0 auto 32px;
+  position: relative; display: flex;
+  align-items: center; justify-content: center;
+}
+
+.logo-bg {
+  position: absolute; inset: 0;
+  border-radius: 48px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(96,165,250,0.06));
+  border: 1px solid rgba(59,130,246,0.15);
+}
+
+.logo-ring {
+  position: absolute; inset: -4px;
+  border-radius: 52px;
+  border: 3px solid transparent;
+  border-top-color: #3b82f6;
+  border-right-color: #60a5fa;
+  animation: spin 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.logo-ring-2 {
+  position: absolute; inset: -11px;
+  border-radius: 58px;
+  border: 2px solid transparent;
+  border-bottom-color: rgba(96,165,250,0.3);
+  border-left-color: rgba(59,130,246,0.2);
+  animation: spin 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.logo-icon {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.logo-icon svg { width: 80px; height: 80px; }
+
+.title {
+  font-size: 32px; font-weight: 700; color: #f1f5f9;
+  letter-spacing: 0.5px; margin-bottom: 6px;
+}
+
+.title span { color: #60a5fa; }
+
+.subtitle {
+  font-size: 14px; color: #64748b;
+  letter-spacing: 4px; text-transform: uppercase;
+  margin-bottom: 40px;
+}
+
+.dots { display: flex; gap: 12px; justify-content: center; margin-bottom: 36px; }
+.dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #3b82f6; opacity: 0.3;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+.dot:nth-child(2) { animation-delay: 0.5s; }
+.dot:nth-child(3) { animation-delay: 1s; }
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.status {
+  font-size: 14px; color: #64748b;
+  min-height: 22px; transition: color 0.3s;
+}
+.status.loaded { color: #4ade80; }
+.status.error { color: #f87171; }
+
+.progress {
+  width: 280px; height: 3px; margin: 20px auto 0;
+  background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; width: 0%; border-radius: 4px;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.version {
+  position: fixed; bottom: 24px;
+  font-size: 11px; color: #334155; letter-spacing: 0.5px;
+}
+</style>
+</head>
+<body>
+<div id="intro-overlay">
+  <div class="container">
+    <div class="logo-wrap">
+      <div class="logo-bg"></div>
+      <div class="logo-ring"></div>
+      <div class="logo-ring-2"></div>
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z" fill="rgba(251,191,36,0.15)" stroke="#fbbf24"/>
+        </svg>
+      </div>
+    </div>
+    <div class="title">Virtual <span>kassa</span></div>
+    <div class="subtitle">POS Terminal</div>
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="status" id="status">Инициализация...</div>
+    <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="version">v1.0.0</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const overlay = document.getElementById('intro-overlay');
+  const statusEl = document.getElementById('status');
+  const progressEl = document.getElementById('progressFill');
+
+  const steps = [
+    { msg: 'Инициализация...', pct: 8 },
+    { msg: 'Запуск сервера...', pct: 20 },
+    { msg: 'Подключение к базе данных...', pct: 35 },
+    { msg: 'Загрузка конфигурации...', pct: 50 },
+    { msg: 'Подготовка интерфейса...', pct: 65 },
+    { msg: 'Почти готово...', pct: 80 },
+  ];
+
+  let stepIdx = 0;
+  const stepInterval = setInterval(() => {
+    if (stepIdx < steps.length) {
+      statusEl.textContent = steps[stepIdx].msg;
+      progressEl.style.width = steps[stepIdx].pct + '%';
+      stepIdx++;
+    }
+  }, 1200);
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    if (cls) statusEl.className = 'status ' + cls;
+  }
+
+  function setProgress(pct) {
+    progressEl.style.width = pct + '%';
+  }
+
+  function hideIntro() {
+    clearInterval(stepInterval);
+    setProgress(100);
+    setStatus('Запуск приложения...', 'loaded');
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+    }, 300);
+  }
+
+  // Load all app assets and wait for POS to be ready
+  async function loadApp() {
+    const base = 'http://localhost:3080';
+
+    // 1. Wait for server
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await fetch(base + '/api/health');
+        if (r.ok) break;
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    setStatus('Загрузка интерфейса...');
+    setProgress(85);
+
+    // 2. Fetch main page HTML
+    const resp = await fetch(base + '/');
+    const html = await resp.text();
+
+    // 3. Replace current page content (keeping overlay)
+    document.open();
+    document.write(html);
+    document.close();
+    // After document.close(), all scripts from the main page will execute
+
+    // 4. Wait for POS initialization
+    const checkPOS = () => {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const timer = setInterval(() => {
+          attempts++;
+          if (window.POS && typeof POS.init === 'function') {
+            // POS object is available and init exists
+            clearInterval(timer);
+            resolve(true);
+          } else if (attempts > 100) { // ~10s timeout
+            clearInterval(timer);
+            resolve(false);
+          }
+        }, 100);
+      });
+    };
+
+    const posReady = await checkPOS();
+    setProgress(95);
+
+    if (posReady) {
+      // Re-append overlay on top of the loaded page
+      document.body.prepend(overlay);
+      setStatus('Готово!');
+      setProgress(100);
+      setTimeout(hideIntro, 500);
+    } else {
+      // POS didn't initialize but still hide intro after timeout
+      setTimeout(hideIntro, 1000);
+    }
+  }
+
+  loadApp();
+})();
+</script>
+</body>
+</html>

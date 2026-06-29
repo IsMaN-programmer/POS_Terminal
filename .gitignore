@@ -1,0 +1,35 @@
+node_modules/
+dist/
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Uploads
+uploads/
+
+# SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+# Build output
+dist-pos/
+dist-electron/
+*.exe
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
