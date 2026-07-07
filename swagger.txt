@@ -1,0 +1,732 @@
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/Auth/SignChallenge/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "BorrowedReceiptFilesCount": 0,
+  "CardAccomulator": {
+    "Refund": 223300,
+    "Sale": 12998320
+  },
+  "CashAccomulator": {
+    "Refund": 223300,
+    "Sale": 12998320
+  },
+  "FReportCurrentIndex": 0,
+  "FirstUnacknowledgedReceiptTime": "2024-01-03 09:52:22",
+  "LastOperationTime": "2024-01-02 09:12:39",
+  "ReceiptCurrentIndex": -1,
+  "ReceiptSeq": 1,
+  "ReceiptsAllocated": 2,
+  "ReceiptsCapacity": 800,
+  "ReceiptsCount": 3,
+  "TerminalID": "ZZ000000000000",
+  "VATAccomulator": {
+    "Refund": 223300,
+    "Sale": 12998320
+  },
+  "ZReportCurrentIndex": -1,
+  "ZReportsAllocated": 1,
+  "ZReportsCapacity": 600,
+  "ZReportsCount": 1
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/FiscalMemory/Info/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "AppletVersion": "0400",
+  "CPLC": "73b06e0007ffffff51001000e10704070131",
+  "JCREVersion": "0300",
+  "Locked": true,
+  "MemoryInfo": {
+    "AvailableDeselectMemory": 3000,
+    "AvailablePersistentMemory": 1000,
+    "AvailableResetMemory": 2000
+  },
+  "Mode": 1,
+  "POSAuth": false,
+  "POSLocked": false,
+  "Patch": "00",
+  "SyncChallenge": "c395452d5949cdbc",
+  "TerminalID": "ZZ000000000000"
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/Info/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+[
+  {
+    "ATR": "3bfc180000813180459067464a01003170000000002a",
+    "AppletVersion": "0400",
+    "Description": "FEITIAN_USB_JAVACARD_1 (blue)",
+    "FactoryID": "73b06e0007ffffff51001000e10704070131",
+    "ReaderName": "Feitian eJAVA Token 00 00"
+  }
+]
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/List если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/State/Sync/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/POS/Auth/{FactoryID} если нужно 
+Code	Description
+200	
+0000000000000000000000000000000000000000000000000000000000000000
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/POS/Challenge/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/POS/Lock/{FactoryID} если нужно 
+Name	Description
+FactoryID *
+string
+(path)
+FactoryID
+
+FactoryID
+JsonReceipt *
+object
+(body)
+JsonReceipt
+
+Example Value
+Model
+{
+  "ExtraInfo": {
+    "CarNumber": "00D152CF",
+    "CardNumber": "8600********1234",
+    "CardType": 1,
+    "CashedOutFromCard": 10469,
+    "PINFL": "17182749334613",
+    "PPTID": "79",
+    "PhoneNumber": "998991234567",
+    "QRPaymentID": "1771c710-3b39-4719-abae-1b02ed1bb02e",
+    "QRPaymentProvider": 20,
+    "TIN": "497942601"
+  },
+  "FlightPassengerInfo": {
+    "FlightNumber": "HY-9999",
+    "PINFL": "17182749334613",
+    "PassportNumber": "AA0123456",
+    "SeatNumber": "24B"
+  },
+  "Items": [
+    {
+      "Amount": 2000,
+      "Barcode": "3637718744639",
+      "CommissionInfo": {
+        "PINFL": "17182749334613",
+        "TIN": "497942601"
+      },
+      "Discount": 100000,
+      "Label": "1308081323702",
+      "Labels": [
+        "string"
+      ],
+      "Name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "Other": 0,
+      "OwnerType": 0,
+      "PackageCode": "89425098574164601908",
+      "Price": 200000,
+      "SPIC": "05853401350819190",
+      "Units": 589296034,
+      "VAT": 10714,
+      "VATPercent": 12
+    }
+  ],
+  "Location": {
+    "Latitude": 69.21758219705353,
+    "Longitude": 41.296046190943834
+  },
+  "Operation": 0,
+  "ReceivedCard": 100000,
+  "ReceivedCash": 0,
+  "RefundInfo": {
+    "DateTime": "20240101090405",
+    "FiscalSign": "000000000000",
+    "ReceiptSeq": 1,
+    "TerminalID": "ZZ000000000000"
+  },
+  "Time": "2024-05-13 15:31:01",
+  "Type": 0
+}
+Code	Description
+200	
+OK
+
+Example Value
+Model
+0
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/Receipt/GetTXID/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "Extra": "",
+  "FiscalSign": "000000000000",
+  "ItemsCount": 3,
+  "ItemsHash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "OperationType": "Sale",
+  "ReceiptSeq": 1,
+  "ReceiptType": "Purchase",
+  "ReceivedCard": 0,
+  "ReceivedCash": 132344,
+  "TerminalID": "ZZ000000000000",
+  "Time": "2024-01-02 09:12:39",
+  "TotalVAT": 1123
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/Receipt/Info/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+0
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/Receipt/RegisterTXID/{FactoryID} если нужно 
+​Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "additionalProp1": 0,
+  "additionalProp2": 0,
+  "additionalProp3": 0
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Count если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+[
+  {
+    "Message": "",
+    "OperationType": "Sale",
+    "ReceiptSeq": 1,
+    "ReceiptType": "Purchase",
+    "StatusChangeTime": "2024-01-02 09:12:39",
+    "TXID": 1,
+    "TerminalID": "ZZ000000000000",
+    "Time": "2024-01-02 09:12:39",
+    "Version": 20
+  }
+]
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/List/{FactoryID}/{Limit}/{Offset} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "FailsCount": 0,
+  "Items": [
+    {
+      "CloseTime": "2024-01-03 19:12:39",
+      "ReceiptSeq": 1,
+      "Status": 1,
+      "StatusText": "error",
+      "TerminalID": "ZZ000000000000"
+    }
+  ],
+  "SuccessfulsCount": 10
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Resend/FullReceipts/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Status/Reset если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "FailsCount": 0,
+  "Items": [
+    {
+      "CloseTime": "2024-01-03 19:12:39",
+      "ReceiptSeq": 1,
+      "Status": 1,
+      "StatusText": "error",
+      "TerminalID": "ZZ000000000000"
+    }
+  ],
+  "SuccessfulsCount": 10
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Sync/FullReceipts/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "FailsCount": 0,
+  "Items": [
+    {
+      "CloseTime": "2024-01-03 19:12:39",
+      "ReceiptSeq": 1,
+      "Status": 1,
+      "StatusText": "error",
+      "TerminalID": "ZZ000000000000"
+    }
+  ],
+  "SuccessfulsCount": 10
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Sync/Receipts/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "FailsCount": 0,
+  "Items": [
+    {
+      "CloseTime": "2024-01-03 19:12:39",
+      "ReceiptSeq": 1,
+      "Status": 1,
+      "StatusText": "error",
+      "TerminalID": "ZZ000000000000"
+    }
+  ],
+  "SuccessfulsCount": 10
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/DataBase/Files/Sync/ZReports/{FactoryID} если нужно 
+​Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/ZReport/Close/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+{
+  "AcknowledgedTime": "2024-01-03 20:52:22",
+  "CloseTime": "2024-01-03 19:12:39",
+  "FirstReceiptSeq": 1,
+  "LastReceiptSeq": 143,
+  "OpenTime": "2024-01-02 09:12:39",
+  "TerminalID": "ZZ000000000000",
+  "TotalCard": {
+    "Refund": 223300,
+    "Sale": 12998320
+  },
+  "TotalCash": {
+    "Refund": 223300,
+    "Sale": 12998320
+  },
+  "TotalRefundCount": 31,
+  "TotalSaleCount": 113,
+  "TotalVAT": {
+    "Refund": 223300,
+    "Sale": 12998320
+  }
+}
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/ZReport/Info/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+"string"
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/ZReport/Open/{FactoryID} если нужно 
+Code	Description
+200	
+OK
+
+Example Value
+Model
+[
+  0
+]
+default	
+Example Value
+Model
+{
+  "CallLog": [
+    {
+      "At": "file.go:12",
+      "Function": "module/func1",
+      "Message": "failed to connect"
+    }
+  ],
+  "Next": "string",
+  "Reason": "network error",
+  "Type": "*errorType"
+}
+/FiscalDrive/ZReport/UnackowledgedIndexes/{FactoryID} если нужно 
+​
+​

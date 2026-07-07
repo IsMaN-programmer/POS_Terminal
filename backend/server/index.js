@@ -471,6 +471,40 @@ app.post("/api/sync/init", async (req, res) => {
   }
 });
 
+app.post("/api/sync/menu", async (req, res) => {
+  const { items } = req.body;
+  try {
+    await pool.query("DELETE FROM menu");
+    for (const item of items || []) {
+      await pool.query(
+        "INSERT INTO menu (name, price, category, mxik_code, emoji, photo, barcode, requiresMarking, noKitchen, vvcProductId) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        [item.name, item.price, item.category, item.mxikCode || '', item.emoji || 'bowl', item.photo || null, item.barcode || null, item.requiresMarking ? 1 : 0, item.noKitchen ? 1 : 0, item.vvcProductId || null]
+      );
+    }
+    res.json({ ok: true, count: (items || []).length });
+  } catch (err) {
+    console.error("[Sync/Menu] Error:", err);
+    res.status(500).json({ ok: false, error: "Failed to sync menu" });
+  }
+});
+
+app.post("/api/sync/categories", async (req, res) => {
+  const { items } = req.body;
+  try {
+    await pool.query("DELETE FROM categories");
+    for (const cat of items || []) {
+      await pool.query(
+        "INSERT INTO categories (id, name, emoji) VALUES ($1, $2, $3)",
+        [cat.id, cat.name, cat.emoji || 'clipboard']
+      );
+    }
+    res.json({ ok: true, count: (items || []).length });
+  } catch (err) {
+    console.error("[Sync/Categories] Error:", err);
+    res.status(500).json({ ok: false, error: "Failed to sync categories" });
+  }
+});
+
 app.get("/api/sync/changes", async (req, res) => {
   const { since, terminalId } = req.query;
   const sinceTimestamp = parseInt(since || "0", 10);

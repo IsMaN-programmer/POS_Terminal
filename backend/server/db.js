@@ -233,6 +233,73 @@ const MIGRATIONS = [
         db.run("ALTER TABLE menu ADD COLUMN photo TEXT");
       }
     }
+  },
+  {
+    name: 'add_categories',
+    up: (db) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          emoji TEXT
+        )
+      `);
+    }
+  },
+  {
+    name: 'add_tables',
+    up: (db) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS tables (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          seats INTEGER DEFAULT 4,
+          status TEXT DEFAULT 'free',
+          price INTEGER DEFAULT 0
+        )
+      `);
+    }
+  },
+  {
+    name: 'add_z_reports',
+    up: (db) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS z_reports (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL,
+          date TEXT,
+          cashier TEXT,
+          totalRevenue REAL DEFAULT 0,
+          cashRevenue REAL DEFAULT 0,
+          cardRevenue REAL DEFAULT 0,
+          mobileRevenue REAL DEFAULT 0,
+          orderCount INTEGER DEFAULT 0,
+          discountTotal REAL DEFAULT 0,
+          refundTotal REAL DEFAULT 0,
+          refundCash REAL DEFAULT 0,
+          refundCard REAL DEFAULT 0,
+          refundMobile REAL DEFAULT 0,
+          salesVat REAL DEFAULT 0,
+          vatRate REAL DEFAULT 0,
+          openTime TEXT,
+          closeTime TEXT
+        )
+      `);
+    }
+  },
+  {
+    name: 'extend_menu',
+    up: (db) => {
+      const stmt = db.prepare("PRAGMA table_info('menu')");
+      const cols = [];
+      while (stmt.step()) cols.push(stmt.getAsObject());
+      stmt.free();
+      const colNames = cols.map(c => c.name);
+      if (!colNames.includes('barcode')) db.run("ALTER TABLE menu ADD COLUMN barcode TEXT");
+      if (!colNames.includes('requiresMarking')) db.run("ALTER TABLE menu ADD COLUMN requiresMarking INTEGER DEFAULT 0");
+      if (!colNames.includes('noKitchen')) db.run("ALTER TABLE menu ADD COLUMN noKitchen INTEGER DEFAULT 0");
+      if (!colNames.includes('vvcProductId')) db.run("ALTER TABLE menu ADD COLUMN vvcProductId INTEGER");
+    }
   }
 ];
 
@@ -292,3 +359,4 @@ process.on('SIGTERM', () => {
 });
 
 export default pool;
+

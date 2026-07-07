@@ -1,12 +1,5 @@
 const { contextBridge } = require('electron');
 
-// Clear saved session so PIN screen shows on every launch
-try {
-  localStorage.removeItem('pos_user');
-  localStorage.removeItem('pos_token');
-  localStorage.removeItem('pos_state');
-} catch (_) {}
-
 const overlayCSS = `
 #__pos_overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;

@@ -25,6 +25,7 @@
       "backend/**/*",
       "frontend/dist/**/*",
       "frontend/js/**/*",
+      "frontend/assets/**/*",
       "node_modules/**/*",
       "package.json"
     ],
@@ -43,7 +44,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "POS Terminal",
-      "language": "1049"
+      "language": "1049",
+      "include": "build/installer.nsh"
     },
     "asar": false
   },

@@ -168,8 +168,8 @@ const POS = {
         vatRate: 12,
         theme: 'light',
         vcrUrl: 'http://127.0.0.1:5614',
-        vcrUsername: 'cashier01',
-        vcrPassword: 'secret',
+        vcrUsername: '',
+        vcrPassword: '',
         vcrTerminalId: 'LG420211640998',
         vcrEnabled: true,
         language: 'ru',
@@ -195,7 +195,336 @@ const POS = {
         });
     },
 
+    /* ---- VCR credentials check ---- */
+    _hasFiscalModule() {
+        return !!(this.state.vcrFiscalModuleFactoryId);
+    },
 
+    /* ---- Fiscal Module Setup Screen ---- */
+    _showVcrLoginScreen() {
+        const overlay = document.getElementById('vcr-login-overlay');
+        if (overlay) overlay.style.display = 'flex';
+        const usernameInput = document.getElementById('vcr-login-username');
+        const passwordInput = document.getElementById('vcr-login-password');
+        if (usernameInput) { usernameInput.value = ''; usernameInput.focus(); }
+        if (passwordInput) passwordInput.value = '';
+        const btn = document.getElementById('vcr-login-btn');
+        if (btn) {
+            btn.disabled = false;
+            const text = btn.querySelector('.vcr-login-btn-text');
+            const loader = btn.querySelector('.vcr-login-btn-loader');
+            if (text) text.style.display = 'inline';
+            if (loader) loader.style.display = 'none';
+        }
+        this._detectFiscalModules();
+        const handler = (e) => {
+            if (e.key === 'Enter') this._handleVcrLogin();
+        };
+        if (usernameInput) usernameInput.addEventListener('keydown', handler);
+        if (passwordInput) passwordInput.addEventListener('keydown', handler);
+    },
+
+    async _detectFiscalModules() {
+        const select = document.getElementById('vcr-login-terminal');
+        const hint = document.getElementById('vcr-login-terminal-hint');
+        if (!select) return;
+        select.innerHTML = '<option value="">Поиск модулей...</option>';
+        select.disabled = true;
+        try {
+            let modules = [];
+            if (typeof FiscalAPI !== 'undefined') {
+                const list = await FiscalAPI.getFiscalModuleList();
+                if (list && list.length > 0) {
+                    modules = list;
+                } else {
+                    const info = await FiscalAPI.getFiscalDriveInfo('');
+                    if (info) modules = [info];
+                }
+            }
+            if (modules.length > 0) {
+                select.innerHTML = '';
+                const savedFactoryId = this.state.vcrFiscalModuleFactoryId || '';
+                let foundDefault = false;
+                for (const fm of modules) {
+                    const factoryId = fm.factoryId || fm.FactoryID || '';
+                    const desc = fm.description || fm.Description || '';
+                    const readerName = fm.readerName || fm.ReaderName || '';
+                    const terminalId = fm.terminalId || '';
+                    const label = terminalId ? `${terminalId}` : (desc ? `${desc}` : (readerName || factoryId || 'Неизвестный модуль'));
+                    const val = factoryId;
+
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = label;
+                    opt.dataset.readerName = readerName;
+                    opt.dataset.description = desc;
+                    opt.dataset.factoryId = factoryId;
+                    opt.dataset.terminalId = terminalId;
+                    if (val && val === savedFactoryId) { opt.selected = true; foundDefault = true; }
+                    select.appendChild(opt);
+                    if (terminalId && !this.state.vcrTerminalId) {
+                        this.state.vcrTerminalId = terminalId;
+                    }
+                }
+                if (modules.length === 1) {
+                    const firstVal = select.options[0]?.value || '';
+                    if (firstVal && !savedFactoryId) {
+                        this._loadTerminalIdForModule(firstVal).catch(() => {});
+                    }
+                }
+                if (!foundDefault && savedFactoryId) {
+                    select.innerHTML += `<option value="${savedFactoryId}" selected>${savedFactoryId.slice(0, 16)}... (сохранённый)</option>`;
+                }
+                if (hint) { hint.textContent = `Найдено модулей: ${modules.length}`; hint.style.display = 'block'; }
+            } else {
+                const fallbackId = this.state.vcrFiscalModuleFactoryId || '';
+                select.innerHTML = fallbackId
+                    ? `<option value="${fallbackId}" selected>${fallbackId.slice(0, 16)}... (сохранённый)</option>`
+                    : '<option value="">Фискальные модули не найдены</option>';
+                if (hint) { hint.textContent = 'Подключите фискальный модуль к USB'; hint.style.display = 'block'; }
+            }
+        } catch (e) {
+            console.warn('[FM] Не удалось получить список фискальных модулей:', e.message);
+            const fallbackId = this.state.vcrFiscalModuleFactoryId || this.state.vcrTerminalId || 'LG420211640998';
+            select.innerHTML = `<option value="${fallbackId}" selected>${fallbackId}</option>`;
+            if (hint) { hint.textContent = 'Не удалось обнаружить модули. Используется сохранённый'; hint.style.display = 'block'; }
+        } finally {
+            select.disabled = false;
+        }
+    },
+
+    async _loadTerminalIdForModule(factoryId) {
+        if (!factoryId || typeof FiscalAPI === 'undefined') return;
+        // Skip if not logged into VKК yet (FiscalDrive endpoints require auth)
+        if (!this.state.vcrToken && !FiscalAPI.config.token) return;
+        try {
+            const info = await FiscalAPI.getFiscalModuleInfo(factoryId);
+            if (info && info.terminalId) {
+                this.state.vcrTerminalId = info.terminalId;
+                const hint = document.getElementById('vcr-login-terminal-hint');
+                if (hint) {
+                    hint.textContent = `TerminalID: ${info.terminalId}`;
+                    hint.style.display = 'block';
+                }
+            }
+        } catch (e) {
+            console.warn('[FM] Не удалось загрузить TerminalID для модуля:', e.message);
+        }
+    },
+
+    _hideVcrLoginScreen() {
+        const overlay = document.getElementById('vcr-login-overlay');
+        if (overlay) overlay.style.display = 'none';
+    },
+
+    async _handleVcrLogin() {
+        const username = document.getElementById('vcr-login-username').value.trim();
+        const password = document.getElementById('vcr-login-password').value;
+        const errorEl = document.getElementById('vcr-login-error');
+        const btn = document.getElementById('vcr-login-btn');
+        const terminalSelect = document.getElementById('vcr-login-terminal');
+
+        errorEl.style.display = 'none';
+
+        if (!username || !password) {
+            errorEl.textContent = 'Введите логин и пароль';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        const selectedFactoryId = terminalSelect ? terminalSelect.value : '';
+
+        btn.disabled = true;
+        btn.querySelector('.vcr-login-btn-text').style.display = 'none';
+        btn.querySelector('.vcr-login-btn-loader').style.display = 'inline';
+
+        try {
+            // Save credentials to config
+            if (typeof FiscalAPI !== 'undefined') {
+                FiscalAPI.config.vcrUsername = username;
+                FiscalAPI.config.vcrPassword = password;
+                if (selectedFactoryId) {
+                    FiscalAPI.config.vcrFiscalModuleFactoryId = selectedFactoryId;
+                }
+            }
+
+            // VKК login
+            const vcrUrl = (this.state.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const loginResp = await fetch(`${vcrUrl}/api/v1/user/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    terminalId: this.state.vcrTerminalId || selectedFactoryId
+                })
+            });
+
+            if (!loginResp.ok) {
+                throw new Error('Неверный логин или пароль');
+            }
+
+            const loginJson = await loginResp.json();
+            if (!loginJson.success) {
+                throw new Error(loginJson.message || 'Ошибка авторизации в ВКК');
+            }
+
+            const token = loginJson.data;
+            this.state.vcrToken = token;
+            if (typeof FiscalAPI !== 'undefined') {
+                FiscalAPI.config.token = token;
+            }
+
+            this.state.vcrFiscalModuleFactoryId = selectedFactoryId;
+            this.syncVcrConfig();
+            this.saveState();
+
+            this._hideVcrLoginScreen();
+
+            // Sync menu and categories from VKК API
+            try {
+                await this._syncProductsFromVcr(token);
+                await this._syncCategoriesFromVcr(token);
+                this._saveMenuData();
+            } catch (syncErr) {
+                console.warn('[VCR Login] Ошибка синхронизации меню:', syncErr.message);
+            }
+
+            this.showLogin();
+
+        } catch (e) {
+            console.error('[VCR Login]', e);
+            errorEl.textContent = 'Ошибка: ' + e.message;
+            errorEl.style.display = 'block';
+            btn.disabled = false;
+            btn.querySelector('.vcr-login-btn-text').style.display = 'inline';
+            btn.querySelector('.vcr-login-btn-loader').style.display = 'none';
+        }
+    },
+
+    _updateLoadingProgress(steps, idx) {
+        const status = document.getElementById('loading-status');
+        const fill = document.getElementById('loading-progress-fill');
+        if (steps[idx]) {
+            if (status) status.textContent = steps[idx].msg;
+            if (fill) fill.style.width = steps[idx].pct + '%';
+        }
+    },
+
+    async _syncProductsFromVcr(token) {
+        const vcrUrl = (this.state.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+        let allProducts = [];
+        let page = 1;
+        const size = 200;
+        let totalCount = Infinity;
+
+        while (allProducts.length < totalCount) {
+            const prodRes = await fetch(`${vcrUrl}/api/v1/product?page=${page}&size=${size}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const prodData = await prodRes.json();
+            if (!prodData.success) break;
+            if (Array.isArray(prodData.data)) {
+                allProducts = allProducts.concat(prodData.data);
+            }
+            totalCount = prodData.totalCount || allProducts.length;
+            page++;
+        }
+
+        const status = document.getElementById('loading-status');
+        if (status) status.textContent = `Импорт ${allProducts.length} позиций...`;
+
+        // Deduplicate by VKК product ID
+        const seen = new Set();
+        allProducts = allProducts.filter(p => {
+            if (!p.id || seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+        });
+
+        // ВКК не принимает от нас информацию о проданном (в API нет метода
+        // для записи остатка обратно) — кабинет ВКК просто хранит то число,
+        // что туда ввели вручную. Поэтому при повторной синхронизации нельзя
+        // слепо перезаписывать уже уменьшенный локально остаток: сверяем с
+        // прошлым известным значением ВКК (vcrStockBaseline) и переносим наш
+        // локальный остаток, если в кабинете ничего не поменяли. Если же само
+        // число в ВКК изменилось (пополнили/скорректировали) — берём его.
+        const prevByVcrId = new Map();
+        (this.menu || []).forEach(m => {
+            if (m.vvcProductId !== undefined && m.vvcProductId !== null) {
+                prevByVcrId.set(m.vvcProductId, m);
+            }
+        });
+
+        this.menu = [];
+        const maxId = 0;
+        let added = 0;
+
+        for (const vvcProd of allProducts) {
+            const name = (vvcProd.name || '').trim();
+            if (!name) continue;
+
+            const price = Math.round((vvcProd.salePrice || 0) / 100);
+            if (price <= 0) continue;
+
+            const posCategory = vvcProd.categoryId ? 'vvc-' + vvcProd.categoryId : 'main';
+            const vcrAmount = (typeof vvcProd.amount === 'number' && !isNaN(vvcProd.amount)) ? vvcProd.amount : null;
+
+            let stock = vcrAmount;
+            const prevItem = prevByVcrId.get(vvcProd.id);
+            if (prevItem && typeof prevItem.stock === 'number' && vcrAmount !== null) {
+                const baselineUnchanged = prevItem.vcrStockBaseline === vcrAmount;
+                stock = baselineUnchanged ? prevItem.stock : vcrAmount;
+            }
+
+            this.menu.push({
+                id: maxId + 1 + added,
+                name,
+                price,
+                category: posCategory,
+                mxikCode: vvcProd.mxikCode || '',
+                barcode: vvcProd.barcode || '',
+                emoji: 'bowl',
+                requiresMarking: !!vvcProd.hasLabel,
+                noKitchen: false,
+                vvcProductId: vvcProd.id,
+                stock: stock,
+                vcrStockBaseline: vcrAmount
+            });
+            added++;
+        }
+    },
+
+    async _syncCategoriesFromVcr(token) {
+        const vcrUrl = (this.state.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+        const catRes = await fetch(`${vcrUrl}/api/v1/reference/category`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const catData = await catRes.json();
+        if (!catData.success || !Array.isArray(catData.data)) return;
+
+        const catSeen = new Set();
+        this.categories = [{ id: 'all', name: 'Всё', emoji: 'clipboard' }];
+        for (const vvcCat of catData.data) {
+            const name = (vvcCat.name || '').trim();
+            if (!name) continue;
+            const catId = 'vvc-' + vvcCat.id;
+            if (catSeen.has(catId)) continue;
+            catSeen.add(catId);
+            const emoji = this._vvcCategoryEmoji(name);
+            this.categories.push({ id: catId, name, emoji });
+        }
+    },
+
+    _showLoading() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+    },
+
+    _hideLoading() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    },
 
     tables: [
         { id: 1, name: 'Стол 1', seats: 4, status: 'free', price: 0 },
@@ -219,13 +548,17 @@ const POS = {
         { id: 4, name: __('receipt.cashier.label'), pin: '0000', role: 'cashier' },
     ],
 
-    categories: [],
+    categories: [
+        { id: 'all', name: 'Всё', emoji: 'clipboard' },
+    ],
     menu: [],
     modifiers: [],
 
     /* ======================== CORE DATA RESET ======================== */
     _resetCoreData() {
-        this.categories = [];
+        this.categories = [
+            { id: 'all', name: 'Всё', emoji: 'clipboard' },
+        ];
         this.menu = [];
         this.modifiers = [];
         this.staff = [
@@ -262,9 +595,37 @@ const POS = {
         this._initInactivityLock();
         this._startAutoSync();
         this.bindEvents();
-        if (this.state.loggedIn) this.enterPOS();
-        else this.showLogin();
+        if (this.state.loggedIn) {
+            this.enterPOS();
+            this._hideLoading();
+        } else {
+            this._showLoading();
+            this._runLoadingSequence();
+        }
     },
+
+    async _runLoadingSequence() {
+        const steps = [
+            { msg: 'Инициализация...', pct: 10 },
+            { msg: 'Загрузка конфигурации...', pct: 25 },
+            { msg: 'Подготовка интерфейса...', pct: 40 },
+            { msg: 'Проверка подключения...', pct: 55 },
+            { msg: 'Загрузка данных...', pct: 70 },
+            { msg: 'Почти готово...', pct: 85 },
+        ];
+        for (let i = 0; i < steps.length; i++) {
+            await new Promise(r => setTimeout(r, 400));
+            this._updateLoadingProgress(steps, i);
+        }
+        await new Promise(r => setTimeout(r, 600));
+        this._hideLoading();
+        if (this._hasFiscalModule()) {
+            this.showLogin();
+        } else {
+            this._showVcrLoginScreen();
+        }
+    },
+
     _adminFilterList(input, listId) {
         const q = input.value.toLowerCase().trim();
         const list = document.getElementById(listId);
@@ -568,11 +929,11 @@ const POS = {
     syncVcrConfig() {
         if (typeof FiscalAPI !== 'undefined') {
             FiscalAPI.config.vcrUrl = this.state.vcrUrl || 'http://127.0.0.1:5614';
-            FiscalAPI.config.vcrUsername = this.state.vcrUsername || 'isardor';
-            FiscalAPI.config.vcrPassword = this.state.vcrPassword || 'sardor123';
-            FiscalAPI.config.vcrTerminalId = this.state.vcrTerminalId || 'LG420211640998';
+            FiscalAPI.config.vcrDriverUrl = this.state.vcrDriverUrl || this.state.vcrUrl || 'http://127.0.0.1:5614';
+            FiscalAPI.config.vcrTerminalId = this.state.vcrTerminalId || '';
             FiscalAPI.config.vcrEnabled = this.state.vcrEnabled !== false;
             FiscalAPI.config.mockMode = !this.state.vcrEnabled;
+            FiscalAPI.config.vcrFiscalModuleFactoryId = this.state.vcrFiscalModuleFactoryId || '';
         }
     },
 
@@ -587,7 +948,7 @@ const POS = {
         container.innerHTML = this.categories.map(cat =>
             `<button class="category-tab${this.state.currentCategory === cat.id ? ' active' : ''}"
                      onclick="POS.selectCategory('${cat.id}')">
-                <span class="tab-emoji">${this.foodIcon(cat.emoji, '16px')}</span> ${cat.name}
+                ${cat.name}
             </button>`
         ).join('');
     },
@@ -614,15 +975,15 @@ const POS = {
             const matchingItems = this.state.order.filter(o => o.id === item.id || String(o.id).startsWith(item.id + '-'));
             const modCount = matchingItems.reduce((s, o) => s + (o.modifiers ? o.modifiers.length : 0), 0);
                     const cashierDisabled = POS._isCashier();
-                    return `<button class="menu-item${inOrder ? ' in-order' : ''}${unavailable || cashierDisabled ? ' unavailable' : ''}${item.photo ? ' has-photo' : ''}"
-                     onclick="${unavailable || cashierDisabled ? '' : "POS.addToOrder(" + item.id + ")"}" ${unavailable || cashierDisabled ? 'disabled' : ''}>
+                    const hasStock = typeof item.stock === 'number';
+                    const remaining = hasStock ? Math.max(0, item.stock - orderQty) : null;
+                    const outOfStock = hasStock && remaining <= 0;
+                    return `<button class="menu-item${inOrder ? ' in-order' : ''}${unavailable || cashierDisabled || outOfStock ? ' unavailable' : ''}"
+                     onclick="${unavailable || cashierDisabled || outOfStock ? '' : "POS.addToOrder(" + item.id + ")"}" ${unavailable || cashierDisabled || outOfStock ? 'disabled' : ''}>
                     ${orderQty > 0 ? `<span class="badge">${orderQty}</span>` : ''}
-                    ${unavailable ? '<span style="position:absolute;top:8px;right:8px;opacity:0.6;">' + this.icn('x-circle', '16px') + '</span>' : ''}
-                    ${item.photo
-                        ? `<span class="menu-item-photo" style="background-image:url(${item.photo})"></span>`
-                        : `<span class="menu-item-icon">${this.foodIcon(item.emoji, '28px')}</span>`}
+                    ${unavailable || outOfStock ? '<span style="position:absolute;top:8px;right:8px;opacity:0.6;">' + this.icn('x-circle', '16px') + '</span>' : ''}
                     <span class="menu-item-name">${item.name}</span>
-                    <span class="menu-item-price">${item.price.toLocaleString()} ${__('currency.sum')}</span>
+                    <span class="menu-item-price">${hasStock ? `<span class="menu-item-stock${remaining <= 3 ? ' low' : ''}">${remaining}</span> / ` : ''}${item.price.toLocaleString()} ${__('currency.sum')}</span>
                     ${modCount > 0 ? `<span style="font-size:10px;color:var(--amber);font-weight:600;">+${modCount} мод.</span>` : ''}
                 </button>`;
         }).join('');
@@ -811,6 +1172,15 @@ const POS = {
         const menuItem = this.menu.find(m => m.id === parseInt(itemId));
         if (!menuItem) return;
 
+        if (typeof menuItem.stock === 'number') {
+            const reserved = this.state.order.filter(o => o.id === menuItem.id || String(o.id).startsWith(menuItem.id + '-')).reduce((s, o) => s + o.quantity, 0);
+            if (reserved >= menuItem.stock) {
+                this.showToast(__('toast.stock.exhausted').replace('{0}', menuItem.name), 'warning');
+                this.renderMenu();
+                return;
+            }
+        }
+
         if (menuItem.requiresMarking) {
             this.promptMarkingCode(menuItem);
             return;
@@ -821,7 +1191,8 @@ const POS = {
         else {
             this.state.order.push({
                 id: menuItem.id, name: menuItem.name, price: menuItem.price,
-                quantity: 1, mxikCode: menuItem.mxikCode, emoji: menuItem.emoji,
+                quantity: 1, mxikCode: menuItem.mxikCode, barcode: menuItem.barcode,
+                emoji: menuItem.emoji,
                 modifiers: [], note: '', kitchenSentQty: 0,
                 noKitchen: !!menuItem.noKitchen,
             });
@@ -887,6 +1258,7 @@ const POS = {
             price: menuItem.price,
             quantity: 1,
             mxikCode: menuItem.mxikCode,
+            barcode: menuItem.barcode,
             emoji: menuItem.emoji,
             modifiers: [],
             note: '',
@@ -910,6 +1282,17 @@ const POS = {
         }
         const item = this.state.order.find(o => String(o.id) === String(itemId));
         if (!item) return;
+        if (delta > 0) {
+            const baseId = parseInt(String(item.id).split('-')[0]);
+            const menuItem = this.menu.find(m => m.id === baseId);
+            if (menuItem && typeof menuItem.stock === 'number') {
+                const reserved = this.state.order.filter(o => o.id === menuItem.id || String(o.id).startsWith(menuItem.id + '-')).reduce((s, o) => s + o.quantity, 0);
+                if (reserved >= menuItem.stock) {
+                    this.showToast(__('toast.stock.exhausted').replace('{0}', menuItem.name), 'warning');
+                    return;
+                }
+            }
+        }
         item.quantity += delta;
         if (item.quantity <= 0) this.state.order = this.state.order.filter(o => String(o.id) !== String(itemId));
         this.renderOrder();
@@ -2323,7 +2706,7 @@ const POS = {
             splitPayments: splitPayments || null,
             received: receivedAmount, change: change > 0 ? change : 0,
             fiscalSign: fiscalResult.fiscalSign || '—',
-            terminalId: fiscalResult.terminalId || '—',
+            terminalId: fiscalResult.terminalId || this.state.vcrTerminalId || (typeof FiscalAPI !== 'undefined' ? FiscalAPI.config.vcrTerminalId : '') || '—',
             receiptSeq: fiscalResult.receiptSeq || null,
             licenseId: fiscalResult.licenseId || null,
             qrCodeUrl: fiscalResult.qrCodeUrl || '',
@@ -2396,6 +2779,7 @@ const POS = {
                 await Warehouse.deductStockForOrder(orderRecord.items);
             }
         }
+        this._deductMenuStock(orderRecord.items);
 
         if (this.state.selectedTable) {
             const table = this.tables.find(t => t.id === this.state.selectedTable);
@@ -2415,6 +2799,19 @@ const POS = {
         this.renderOrder();
         this.showReceiptModal(receiptData);
         this.showToast(__('payment.accepted'), 'success');
+    },
+
+    _deductMenuStock(orderItems) {
+        let changed = false;
+        for (const oi of orderItems) {
+            const baseId = parseInt(String(oi.id).split('-')[0]);
+            const menuItem = this.menu.find(m => m.id === baseId);
+            if (menuItem && typeof menuItem.stock === 'number') {
+                menuItem.stock = Math.max(0, menuItem.stock - oi.quantity);
+                changed = true;
+            }
+        }
+        if (changed) this._saveMenuData();
     },
 
     /* ======================== RECEIPT ======================== */
@@ -3249,19 +3646,19 @@ const POS = {
         // Items HTML
         let itemsHTML = '';
         const items = order.items || [];
+        const hasBarcode = items.some(item => item.barcode);
         items.forEach((item, idx) => {
             const price = item.price || 0;
             const qty = item.quantity || 1;
             const total = price * qty;
             const vat = Math.round(total * 12 / 112 * 100) / 100;
-            const barcode = item.barcode || '4780058470616';
             const mxik = item.mxikCode || '06111001046005004';
             const discount = item.discountSum || 0;
 
             itemsHTML += `
                 <tr>
                     <td>${idx + 1}</td>
-                    <td style="font-family:monospace; font-size:12px;">${barcode}</td>
+                    ${hasBarcode ? `<td style="font-family:monospace; font-size:12px;">${item.barcode || ''}</td>` : ''}
                     <td style="font-family:monospace; font-size:12px;">${mxik}</td>
                     <td style="font-weight:600;">${item.name}</td>
                     <td>${fmtNum(price)}</td>
@@ -3327,7 +3724,7 @@ const POS = {
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th>${__('history.details.barcode')}</th>
+                                        ${hasBarcode ? `<th>${__('history.details.barcode')}</th>` : ''}
                                         <th>${__('history.details.mxik')}</th>
                                         <th>${__('history.details.item.name')}</th>
                                         <th>${__('history.details.price')}</th>
@@ -3350,7 +3747,7 @@ const POS = {
                                 <div class="details-meta-line"><span>${__('history.details.time')}</span><strong>${timeStr}</strong></div>
                                 <div class="details-meta-line"><span>${__('history.details.check.num')}</span><strong>${isRefund ? refundNum : orderNumber}</strong></div>
                                 <div class="details-meta-line"><span>${__('history.details.type')}</span><strong>${isRefund ? __('history.details.refund') : __('history.details.order')}</strong></div>
-                                <div class="details-meta-line"><span>${__('history.details.fiscal.num')}</span><strong>${order.terminalId || '—'}</strong></div>
+                                <div class="details-meta-line"><span>${__('history.details.fiscal.num')}</span><strong>${order.terminalId && order.terminalId !== '—' ? order.terminalId : (this.state.vcrTerminalId || FiscalAPI?.config?.vcrTerminalId || '—')}</strong></div>
                             </div>
                             <div class="details-meta-col" style="border-left: 1px solid var(--border-subtle); padding-left: 40px;">
                                 <div class="details-meta-line"><span>${__('history.details.discount.amount')}</span><strong>${fmtNum(discountTotal)} сум</strong></div>
@@ -3407,7 +3804,6 @@ const POS = {
             const lineTotal = price * qty;
             const lineVat = Math.round(lineTotal * 12 / 112);
             const itemMxik = item.mxikCode || '09901001001000000';
-            const itemBarcode = item.barcode || '4780019518708';
 
             itemsHTML += `
                 <div style="margin: 8px 0; font-family: monospace; font-size: 11px;">
@@ -3420,7 +3816,7 @@ const POS = {
                         <span style="white-space:nowrap; flex-shrink:0;">${lineVat.toLocaleString()} ${__('currency.sum')}</span>
                     </div>
                     <div style="color: #666; font-size: 10px;">ИКПУ (МХИК): ${itemMxik}</div>
-                    <div style="color: #666; font-size: 10px;">Штрих-код: ${itemBarcode}</div>
+                    ${item.barcode ? `<div style="color: #666; font-size: 10px;">Штрих-код: ${item.barcode}</div>` : ''}
                 </div>
             `;
         });
@@ -3500,7 +3896,7 @@ const POS = {
                     <div class="solid"></div>
                     
                     <div class="bold center" style="font-size: 10px; margin-bottom: 4px;">${__('receipt.fiscal.data')}</div>
-                    <div class="line" style="color: #555; font-size: 9.5px;"><span>Terminal ID:</span><span>{${order.terminalId || this.state.vcrTerminalId || '�'}}</span></div>
+                    <div class="line" style="color: #555; font-size: 9.5px;"><span>Terminal ID:</span><span>{${(order.terminalId && order.terminalId !== '—') ? order.terminalId : (this.state.vcrTerminalId || typeof FiscalAPI !== 'undefined' ? FiscalAPI.config.vcrTerminalId : '' || '—')}}</span></div>
                     <div class="line" style="color: #555; font-size: 9.5px;"><span>${__('receipt.fiscal.sign.label')}</span><span>${order.fiscalSign || '�'}</span></div>
                     
                     <div style="text-align:center; padding: 10px 0 5px;">
@@ -3590,7 +3986,6 @@ const POS = {
             const total = price * qty;
             const lineVat = Math.round(total * 12 / 112);
             const discount = item.discountSum || 0;
-            const barcode = item.barcode || '4780019518708';
             const mxik = item.mxikCode || '09901001001000000';
 
             discountTotal += discount;
@@ -3600,7 +3995,7 @@ const POS = {
             xlsHTML += `
                 <tr>
                     <td>${idx + 1}</td>
-                    <td>'${barcode}</td>
+                    <td>${item.barcode ? `'${item.barcode}` : ''}</td>
                     <td>'${mxik}</td>
                     <td>${item.name}</td>
                     <td>${price}</td>
@@ -3679,13 +4074,12 @@ const POS = {
             const qty = item.quantity || 1;
             const total = price * qty;
             const lineVat = Math.round(total * 12 / 112);
-            const barcode = item.barcode || '4780019518708';
             const mxik = item.mxikCode || '09901001001000000';
 
             rowsHTML += `
                 <tr>
                     <td style="border: 1px solid #ddd; padding: 8px;">${idx + 1}</td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">${barcode}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${item.barcode || ''}</td>
                     <td style="border: 1px solid #ddd; padding: 8px;">${mxik}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${item.name}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${price.toLocaleString()} ${__('currency.sum')}</td>
@@ -3945,7 +4339,7 @@ const POS = {
                 return {
                     idx: idx,
                     name: item.name,
-                    barcode: item.barcode || '4780058470616',
+                    barcode: item.barcode || '',
                     price: price,
                     quantity: qty,
                     originalQty: qty,
@@ -4837,25 +5231,49 @@ const POS = {
         }
         await delay(300);
 
-        // Step 2: Sync with server
+        // Step 2: Sync data from backend + VKК API
         currentStep = 2;
         render(2, hasError ? 1 : -1);
         try {
             if (typeof DB !== 'undefined') {
-                let syncedCount = 0;
-                const storesToSync = ['orders', 'menu', 'categories', 'tables', 'guests'];
-                for (const store of storesToSync) {
+                // Backend has endpoints for: orders, menu, guests
+                for (const store of ['orders', 'menu', 'guests']) {
                     const items = await DB.getAll(store);
-                    if (Array.isArray(items)) {
-                        for (const item of items) {
-                            await DB.put(store, item);
-                            syncedCount++;
-                        }
+                    if (Array.isArray(items) && items.length > 0) {
+                        results.server = `${store}: ${items.length} записей`;
                     }
                 }
-                results.server = `Синхронизировано ${syncedCount} записей`;
+                // Categories and tables are local only
+                const cats = await DB._getAllLocal('categories');
+                if (Array.isArray(cats) && cats.length > 0 && !cats.some(c => c.id === 'all')) {
+                    cats.unshift({ id: 'all', name: 'Всё', emoji: 'clipboard' });
+                    await DB._putLocal('categories', { id: 'all', name: 'Всё', emoji: 'clipboard' });
+                }
+                results.server = results.server || 'Данные загружены';
             } else {
                 results.server = 'База данных не доступна';
+            }
+            // Sync from VKК API
+            const token = this.state.vcrToken || (typeof FiscalAPI !== 'undefined' ? FiscalAPI.config.token : null);
+            if (token) {
+                await this._syncProductsFromVcr(token);
+                await this._syncCategoriesFromVcr(token);
+                // Save VKК data to backend SQLite
+                try {
+                    await fetch('/api/sync/menu', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: this.menu })
+                    });
+                    await fetch('/api/sync/categories', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: this.categories.filter(c => c.id !== 'all') })
+                    });
+                } catch (beErr) {
+                    console.warn('[Sync] Backend sync error:', beErr.message);
+                }
+                results.server += ' + ВКК';
             }
         } catch (e) {
             results.server = 'Ошибка: ' + e.message;
@@ -4867,16 +5285,21 @@ const POS = {
         currentStep = 3;
         render(3, hasError ? 2 : -1);
         try {
-            if (typeof DB !== 'undefined') {
-                const menuItems = await DB.getAll('menu');
-                if (Array.isArray(menuItems) && menuItems.length > 0) {
-                    this.menuItems = menuItems;
-                }
-                const cats = await DB.getAll('categories');
+            // If VKК sync didn't run, load from IndexedDB
+            if (!this.state.vcrToken && typeof DB !== 'undefined') {
+                const cats = await DB._getAllLocal('categories');
                 if (Array.isArray(cats) && cats.length > 0) {
+                    if (!cats.some(c => c.id === 'all')) {
+                        cats.unshift({ id: 'all', name: 'Всё', emoji: 'clipboard' });
+                    }
                     this.categories = cats;
                 }
+                const menuItems = await DB._getAllLocal('menu');
+                if (Array.isArray(menuItems) && menuItems.length > 0) {
+                    this.menu = menuItems;
+                }
             }
+            this._saveMenuData();
             this.renderCategories();
             this.renderMenu();
             results.menu = `Меню и категории обновлены`;
@@ -5066,18 +5489,6 @@ const POS = {
                         ${this.icn('link', '14px')} ${__('settings.vcr.url')}
                     </label>
                     <input type="text" class="form-input" id="set-vcr-url" value="${this.state.vcrUrl || 'http://127.0.0.1:5614'}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-                        ${this.icn('log-in', '14px')} ${__('settings.vcr.login')}
-                    </label>
-                    <input type="text" class="form-input" id="set-vcr-user" value="${this.state.vcrUsername || 'isardor'}">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-                        ${this.icn('key', '14px')} ${__('settings.vcr.password')}
-                    </label>
-                    <input type="password" class="form-input" id="set-vcr-pass" value="${this.state.vcrPassword || 'sardor123'}">
                 </div>
                 <div class="form-group">
                     <label class="form-label" style="display:flex;align-items:center;gap:6px;">
@@ -5340,8 +5751,6 @@ const POS = {
         
         if (vcrEnabled) this.state.vcrEnabled = vcrEnabled.checked;
         if (vcrUrl) this.state.vcrUrl = vcrUrl.value.trim();
-        if (vcrUser) this.state.vcrUsername = vcrUser.value.trim();
-        if (vcrPass) this.state.vcrPassword = vcrPass.value.trim();
         if (vcrTermId) this.state.vcrTerminalId = vcrTermId.value.trim();
 
         this.syncVcrConfig();
@@ -5554,38 +5963,21 @@ const POS = {
                 <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;display:flex;">${this.icn('search', '14px')}</span>
                 <input type="text" class="form-input" placeholder="${__('admin.menu.search')}" oninput="POS._adminFilterList(this,'adm-menu-list')" style="width:100%;padding-left:36px;">
             </div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
-                <div style="font-weight:700;margin-bottom:12px;font-size:13px;color:var(--text-primary);display:flex;align-items:center;gap:6px;">${this.icn('refresh-ccw', '16px')} ${__('admin.menu.sync.title')}</div>
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="POS._syncMenuFromVVC()" style="height:42px;padding:0 20px;display:flex;align-items:center;gap:6px;font-weight:600;">${this.icn('download', '16px')} ${__('admin.menu.sync.btn')}</button>
-                    <span style="font-size:12px;color:var(--text-muted);">${__('admin.menu.sync.desc')}</span>
-                </div>
-                <div id="vvc-sync-progress" style="margin-top:8px;display:none;">
-                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;" id="vvc-sync-status">${__('admin.menu.sync.connecting')}</div>
-                    <div style="width:100%;height:4px;background:var(--bg-base);border-radius:2px;overflow:hidden;">
-                        <div id="vvc-sync-bar" style="width:0%;height:100%;background:var(--primary);border-radius:2px;transition:width 0.3s;"></div>
-                    </div>
-                </div>
-            </div>
             <div id="adm-menu-list" style="flex:1;min-height:0;overflow-y:auto;">
                 ${this.menu.map((item, i) => `
                     <div data-name="${item.name.toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-card);border-radius:var(--radius-sm);margin-bottom:6px;">
-                        ${item.photo
-                            ? `<span style="width:40px;height:40px;border-radius:6px;overflow:hidden;flex-shrink:0;background:url(${item.photo}) center/cover no-repeat;border:1px solid var(--border-subtle);"></span>`
-                            : `<span style="font-size:22px;">${this.foodIcon(item.emoji, '22px')}</span>`}
                         <span style="flex:2;font-size:14px;font-weight:600;">${item.name}</span>
                         <span style="flex:1;font-size:13px;color:var(--primary);font-weight:700;">${item.price.toLocaleString()} ${__('currency.sum')}</span>
+                        <span style="flex:0.7;font-size:12px;font-weight:700;color:${typeof item.stock === 'number' ? (item.stock <= 3 ? 'var(--danger)' : 'var(--text-primary)') : 'var(--text-muted)'};">${typeof item.stock === 'number' ? `Ост.: ${item.stock}` : '∞'}</span>
                         <span style="flex:1.5;font-size:12px;color:var(--text-muted);line-height:1.3;">
                             ${this.categories.find(c=>c.id===item.category)?.name || item.category}${item.requiresMarking ? '<span style="font-size:10px;background:var(--danger-muted);color:var(--danger);padding:2px 6px;border-radius:3px;font-weight:600;margin-left:4px;">МАРК</span>' : ''}${item.noKitchen ? '<span style="font-size:10px;background:var(--amber-muted);color:var(--amber);padding:2px 6px;border-radius:3px;font-weight:600;margin-left:4px;">БЕЗ КУХНИ</span>' : ''}
                             <br><span style="font-family:monospace;color:var(--primary-hover);font-size:10px;font-weight:600;">${item.mxikCode || '—'}</span>
                             ${item.barcode ? `<br><span style="font-family:monospace;color:var(--text-muted);font-size:9px;">ШК: ${item.barcode}</span>` : ''}
                         </span>
-                        <button class="order-item-remove" onclick="POS._adminEditItem(${i})" style="width:30px;height:30px;" title="Ред.">${this.icn('edit', '14px')}</button>
                         <button class="order-item-remove" onclick="POS._adminDeleteItem(${i})" style="width:30px;height:30px;color:var(--danger);" title="Удал.">${this.icn('x', '14px')}</button>
                     </div>
                 `).join('')}
             </div>
-            <div id="adm-menu-edit" style="margin-top:12px;"></div>
             </div>`;
     },
 
@@ -5632,7 +6024,7 @@ const POS = {
         editDiv.innerHTML = `
             <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;border:1px solid var(--border-default);">
                 <div style="font-weight:700;margin-bottom:12px;font-size:13px;color:var(--text-primary);display:flex;align-items:center;gap:6px;">${this.icn('edit', '16px')} Редактировать: ${item.name}</div>
-                <div style="display:grid;grid-template-columns:2.2fr 1fr 1.2fr 1.2fr 70px auto;gap:8px;align-items:end;">
+                <div style="display:grid;grid-template-columns:2fr 0.9fr 0.8fr 1.1fr 1.1fr 70px auto;gap:8px;align-items:end;">
                     <div style="display:flex;flex-direction:column;gap:4px;">
                         <label style="font-size:11px;font-weight:600;color:var(--text-secondary);">Название</label>
                         <input type="text" class="form-input" id="adm-edit-name" value="${item.name.replace(/"/g, '&quot;')}">
@@ -5642,9 +6034,13 @@ const POS = {
                         <input type="number" class="form-input" id="adm-edit-price" value="${item.price}">
                     </div>
                     <div style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:11px;font-weight:600;color:var(--text-secondary);" title="Оставьте пустым, если остаток не отслеживается">Остаток</label>
+                        <input type="number" class="form-input" id="adm-edit-stock" placeholder="∞" value="${typeof item.stock === 'number' ? item.stock : ''}">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
                         <label style="font-size:11px;font-weight:600;color:var(--text-secondary);">Категория</label>
                         <select class="form-input" id="adm-edit-cat">
-                            ${this.categories.filter(c=>c.id!=='all').map(c => `<option value="${c.id}" ${c.id===item.category?'selected':''}>${this.foodIcon(c.emoji, '14px')} ${c.name}</option>`).join('')}
+                            ${this.categories.filter(c=>c.id!=='all').map(c => `<option value="${c.id}" ${c.id===item.category?'selected':''}>${c.name}</option>`).join('')}
                         </select>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:4px;">
@@ -5686,6 +6082,7 @@ const POS = {
         if (!item) return;
         const name = document.getElementById('adm-edit-name')?.value.trim();
         const price = parseInt(document.getElementById('adm-edit-price')?.value);
+        const stockRaw = document.getElementById('adm-edit-stock')?.value;
         const cat = document.getElementById('adm-edit-cat')?.value;
         const mxik = document.getElementById('adm-edit-mxik')?.value.trim();
         const marking = document.getElementById('adm-edit-marking-toggle')?.classList.contains('active') || false;
@@ -5694,6 +6091,7 @@ const POS = {
         if (!name || !price) { this.showToast(__('toast.enter.name.price'), 'warning'); return; }
         item.name = name;
         item.price = price;
+        item.stock = (stockRaw === '' || stockRaw === undefined || stockRaw === null) ? null : Math.max(0, parseFloat(stockRaw));
         item.category = cat || 'main';
         if (mxik) item.mxikCode = mxik;
         item.requiresMarking = marking;
@@ -5718,104 +6116,7 @@ const POS = {
     },
 
     async _syncMenuFromVVC() {
-        const progress = document.getElementById('vvc-sync-progress');
-        const status = document.getElementById('vvc-sync-status');
-        const bar = document.getElementById('vvc-sync-bar');
-        if (!progress) return;
-
-        progress.style.display = 'block';
-        bar.style.width = '0%';
-        status.textContent = 'Подключение к ВКК...';
-
-        try {
-            const vcrUrl = (this.state.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
-            const username = this.state.vcrUsername || 'isardor';
-            const password = this.state.vcrPassword || 'sardor123';
-            const terminalId = this.state.vcrTerminalId || 'LG420211640998';
-
-            const loginRes = await fetch(`${vcrUrl}/api/v1/user/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, terminalId })
-            });
-            const loginData = await loginRes.json();
-            if (!loginData.success) throw new Error(loginData.error?.errorMessage || 'Ошибка входа в ВКК');
-            const token = loginData.data;
-            bar.style.width = '20%';
-            status.textContent = 'Авторизация успешна. Загрузка продуктов...';
-
-            let allProducts = [];
-            let page = 1;
-            const size = 200;
-            let totalCount = Infinity;
-
-            while (allProducts.length < totalCount) {
-                const prodRes = await fetch(`${vcrUrl}/api/v1/product?page=${page}&size=${size}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const prodData = await prodRes.json();
-                if (!prodData.success) break;
-                if (Array.isArray(prodData.data)) {
-                    allProducts = allProducts.concat(prodData.data);
-                }
-                totalCount = prodData.totalCount || allProducts.length;
-                page++;
-                const pct = Math.min(20 + Math.round((allProducts.length / (totalCount || 1)) * 60), 80);
-                bar.style.width = pct + '%';
-                status.textContent = `Загружено ${allProducts.length} из ${totalCount === Infinity ? '...' : totalCount} продуктов...`;
-            }
-
-            bar.style.width = '80%';
-            status.textContent = `Импорт ${allProducts.length} позиций в меню...`;
-
-            const maxId = Math.max(...this.menu.map(m => m.id), 0);
-            let added = 0;
-
-            for (const vvcProd of allProducts) {
-                const name = (vvcProd.name || '').trim();
-                if (!name) continue;
-                if (this.menu.some(m => m.mxikCode === vvcProd.mxikCode && m.mxikCode)) continue;
-
-                const price = Math.round((vvcProd.salePrice || 0) / 100);
-                if (price <= 0) continue;
-
-                const posCategory = this._vvcCategoryToPos(vvcProd.categoryId, vvcProd.mxikCode || '');
-
-                this.menu.push({
-                    id: maxId + 1 + added,
-                    name,
-                    price,
-                    category: posCategory,
-                    mxikCode: vvcProd.mxikCode || '',
-                    barcode: vvcProd.barcode || '',
-                    emoji: 'bowl',
-                    requiresMarking: !!vvcProd.hasLabel,
-                    noKitchen: false,
-                    photo: undefined,
-                    vvcProductId: vvcProd.id
-                });
-                added++;
-            }
-
-            this._saveMenuData();
-            bar.style.width = '100%';
-            status.textContent = `Готово! Импортировано ${added} новых позиций.`;
-
-            this.renderMenu();
-            this.showToast(`Импортировано ${added} блюд из ВКК`, 'success');
-
-            setTimeout(() => {
-                if (progress) progress.style.display = 'none';
-                this.closeModal();
-                setTimeout(() => this.showAdminPanel('menu'), 50);
-            }, 2000);
-
-        } catch (e) {
-            console.error('[Sync VVC]', e);
-            bar.style.background = 'var(--danger)';
-            status.textContent = 'Ошибка: ' + e.message;
-            this.showToast('Ошибка синхронизации: ' + e.message, 'error');
-        }
+        this.showToast('Синхронизация с ВКК недоступна. Меню управляется локально.', 'info');
     },
 
     _vvcCategoryToPos(categoryId, mxikCode) {
@@ -5843,73 +6144,7 @@ const POS = {
     },
 
     async _syncCategoriesFromVVC() {
-        const progress = document.getElementById('vvc-cats-progress');
-        const status = document.getElementById('vvc-cats-status');
-        const bar = document.getElementById('vvc-cats-bar');
-        if (!progress) return;
-
-        progress.style.display = 'block';
-        bar.style.width = '0%';
-        status.textContent = 'Подключение к ВКК...';
-
-        try {
-            const vcrUrl = (this.state.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
-            const username = this.state.vcrUsername || 'isardor';
-            const password = this.state.vcrPassword || 'sardor123';
-            const terminalId = this.state.vcrTerminalId || 'LG420211640998';
-
-            const loginRes = await fetch(`${vcrUrl}/api/v1/user/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, terminalId })
-            });
-            const loginData = await loginRes.json();
-            if (!loginData.success) throw new Error(loginData.error?.errorMessage || 'Ошибка входа в ВКК');
-            const token = loginData.data;
-            bar.style.width = '30%';
-            status.textContent = 'Авторизация успешна. Загрузка категорий...';
-
-            const catRes = await fetch(`${vcrUrl}/api/v1/reference/category`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const catData = await catRes.json();
-            if (!catData.success || !Array.isArray(catData.data)) {
-                throw new Error('Не удалось загрузить категории из ВКК');
-            }
-            bar.style.width = '70%';
-            status.textContent = `Импорт ${catData.data.length} категорий...`;
-
-            let added = 0;
-            for (const vvcCat of catData.data) {
-                const name = (vvcCat.name || '').trim();
-                if (!name) continue;
-                const catId = 'vvc-' + vvcCat.id;
-                if (this.categories.some(c => c.id === catId)) continue;
-
-                const emoji = this._vvcCategoryEmoji(name);
-                this.categories.push({ id: catId, name, emoji });
-                added++;
-            }
-
-            this._saveMenuData();
-            bar.style.width = '100%';
-            status.textContent = `Готово! Импортировано ${added} категорий.`;
-
-            this.renderCategories();
-            this.showToast(`Импортировано ${added} категорий из ВКК`, 'success');
-
-            setTimeout(() => {
-                if (progress) progress.style.display = 'none';
-                this.closeModal();
-                setTimeout(() => this.showAdminPanel('cats'), 50);
-            }, 2000);
-
-        } catch (e) {
-            console.error('[Sync VVC Cats]', e);
-            bar.style.background = 'var(--danger)';
-            status.textContent = 'Ошибка: ' + e.message;
-            this.showToast('Ошибка синхронизации: ' + e.message, 'error');
-        }
+        this.showToast('Синхронизация с ВКК недоступна. Категории управляются локально.', 'info');
     },
 
     /* ---- Categories ---- */
@@ -5921,23 +6156,9 @@ const POS = {
                 <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;display:flex;">${this.icn('search', '14px')}</span>
                 <input type="text" class="form-input" placeholder="${__('admin.cats.search')}" oninput="POS._adminFilterList(this,'adm-cats-list')" style="width:100%;padding-left:36px;">
             </div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;">
-                <div style="font-weight:700;margin-bottom:12px;font-size:13px;color:var(--text-primary);display:flex;align-items:center;gap:6px;">${this.icn('refresh-ccw', '16px')} ${__('admin.cats.sync.title')}</div>
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="POS._syncCategoriesFromVVC()" style="height:42px;padding:0 20px;display:flex;align-items:center;gap:6px;font-weight:600;">${this.icn('download', '16px')} ${__('admin.cats.sync.btn')}</button>
-                    <span style="font-size:12px;color:var(--text-muted);">${__('admin.cats.sync.desc')}</span>
-                </div>
-                <div id="vvc-cats-progress" style="margin-top:8px;display:none;">
-                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;" id="vvc-cats-status">${__('admin.menu.sync.connecting')}</div>
-                    <div style="width:100%;height:4px;background:var(--bg-base);border-radius:2px;overflow:hidden;">
-                        <div id="vvc-cats-bar" style="width:0%;height:100%;background:var(--primary);border-radius:2px;transition:width 0.3s;"></div>
-                    </div>
-                </div>
-            </div>
             <div id="adm-cats-list" style="flex:1;min-height:0;overflow-y:auto;">
                 ${cats.map((cat, i) => `
                     <div data-name="${cat.name.toLowerCase()}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-card);border-radius:var(--radius-sm);margin-bottom:6px;">
-                        <span style="font-size:22px;">${this.foodIcon(cat.emoji, '22px')}</span>
                         <span style="flex:1;font-size:14px;font-weight:600;">${cat.name}</span>
                         <span style="font-size:12px;color:var(--text-muted);">id: ${cat.id}</span>
                         <button class="order-item-remove" onclick="POS._adminDeleteCat('${cat.id}')" style="width:30px;height:30px;color:var(--danger);" title="${__('admin.cats.delete.btn')}">${this.icn('x', '14px')}</button>
@@ -6777,93 +6998,113 @@ const POS = {
 
     /* ---- Recipe / Tech Cards Editor ---- */
     _adminWarehouseRecipesContent() {
-        const selectedMenuItemId = this._recipeSelectedMenuItemId;
-        const selectedItem = selectedMenuItemId ? this.menu.find(m => m.id === selectedMenuItemId) : null;
-        const currentRecipe = selectedMenuItemId ? Warehouse.techCards.find(tc => tc.menuItemId === selectedMenuItemId) : null;
+        return `
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                ${this.menu.map(m => {
+                    const card = Warehouse.techCards.find(tc => tc.menuItemId === m.id);
+                    const count = card ? card.ingredients.length : 0;
+                    return `
+                        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);">
+                            <span style="flex:2;font-size:14px;font-weight:600;">${m.name}</span>
+                            <span style="flex:1.4;font-size:12px;color:${count > 0 ? 'var(--success)' : 'var(--text-muted)'};">${count > 0 ? __('admin.warehouse.recipe.has.ingredients') : __('admin.warehouse.recipe.no.ingredients')}</span>
+                            <span style="flex:1;font-size:12.5px;font-weight:700;color:var(--primary);white-space:nowrap;">${Warehouse.getFoodCost(m.id).toLocaleString()} ${__('currency.sum')}</span>
+                            <button class="btn btn-sm btn-secondary" onclick="POS._adminOpenRecipeModal(${m.id})" title="${__('admin.warehouse.recipe.open.btn')}" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                                ${POS.icn('file-text', '16px')} ${__('admin.warehouse.recipe.open.btn')}
+                            </button>
+                        </div>
+                    `;
+                }).join('')}
+                ${this.menu.length === 0 ? `<div style="text-align:center;padding:50px 20px;color:var(--text-muted);font-size:13px;">${__('admin.warehouse.recipe.help')}</div>` : ''}
+            </div>
+        `;
+    },
+
+    /* Renders the tech-card (recipe) editor for a single dish inside a popup modal window */
+    _adminRecipeModalContent(menuItemId) {
+        const selectedItem = this.menu.find(m => m.id === menuItemId);
+        if (!selectedItem) return '';
+        const currentRecipe = Warehouse.techCards.find(tc => tc.menuItemId === menuItemId);
 
         return `
-            <div style="display:grid;grid-template-columns:1.2fr 2fr;gap:16px;min-height:400px;">
-                <!-- Список блюд -->
-                <div style="border-right:1px solid var(--border-subtle);padding-right:16px;display:flex;flex-direction:column;">
-                    <div style="font-weight:700;margin-bottom:8px;font-size:12px;color:var(--text-secondary);flex-shrink:0;">${__('admin.warehouse.recipe.select')}</div>
-                    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
-                        ${this.menu.map(m => `
-                            <button class="btn btn-sm ${selectedMenuItemId === m.id ? 'btn-primary' : 'btn-secondary'}" 
-                                onclick="POS._adminSelectRecipeDish(${m.id})" 
-                                style="text-align:left;width:100%;justify-content:flex-start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                <span>${this.foodIcon(m.emoji, '16px')}</span> <span style="margin-left:6px;">${m.name}</span>
-                            </button>
-                        `).join('')}
-                    </div>
+            <div class="modal" style="max-width:560px;display:flex;flex-direction:column;">
+                <div class="modal-header">
+                    <div class="modal-title">${POS.icn('file-text', '18px')} ${__('admin.warehouse.recipe.modal.title')} ${selectedItem.name}</div>
+                    <button class="modal-close" onclick="POS._adminCloseRecipeModal()"><span class="icon">${POS.icon('x', '18px')}</span></button>
                 </div>
+                <div class="modal-body" id="adm-recipe-modal-body" style="display:flex;flex-direction:column;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">${__('admin.warehouse.recipe.cost')} <strong style="color:var(--primary);font-size:12.5px;">${Warehouse.getFoodCost(selectedItem.id).toLocaleString()} ${__('currency.sum')}</strong> (${__('admin.warehouse.recipe.sale')} ${selectedItem.price.toLocaleString()} ${__('currency.sum')})</div>
 
-                <!-- Рецепт выбранного блюда -->
-                <div style="display:flex;flex-direction:column;">
-                    ${selectedItem ? `
-                        <div style="font-weight:700;font-size:15px;margin-bottom:4px;color:var(--text-primary);display:flex;align-items:center;gap:6px;">
-                            <span>${this.foodIcon(selectedItem.emoji, '18px')}</span> <span>Рецептура: ${selectedItem.name}</span>
-                        </div>
-                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">Себестоимость: <strong style="color:var(--primary);font-size:12.5px;">${Warehouse.getFoodCost(selectedItem.id).toLocaleString()} ${__('currency.sum')}</strong> (Цена продажи: ${selectedItem.price.toLocaleString()} ${__('currency.sum')})</div>
-                        
-                        <!-- Список ингредиентов в рецепте -->
-                        <div style="margin-bottom:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px;">
-                            <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-secondary);">${POS.icn('file-text', '14px')} ${__('admin.warehouse.recipe.composition')}</div>
-                            <div style="display:flex;flex-direction:column;gap:6px;" id="adm-recipe-ingredients-list">
-                                ${currentRecipe && currentRecipe.ingredients.length > 0 ? currentRecipe.ingredients.map(req => {
-                                    const ing = Warehouse.ingredients.find(i => i.id === req.ingredientId);
-                                    if (!ing) return '';
-                                    return `
-                                        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;background:var(--bg-base);padding:6px 10px;border-radius:4px;border:1px solid var(--border-subtle);">
-                                            <span style="font-weight:600;">${ing.name}</span>
-                                            <div style="display:flex;align-items:center;gap:8px;">
-                                                <input type="number" step="0.001" style="width:70px;text-align:center;padding:2px 4px;font-size:12px;" 
-                                                    class="form-input adm-recipe-qty-input" data-ing-id="${ing.id}" value="${req.amount}"
-                                                    onchange="POS._adminUpdateRecipeQty(${selectedItem.id}, ${ing.id}, this.value)">
-                                                <span style="color:var(--text-secondary);font-size:11px;width:30px;">${ing.unit}</span>
-                                                <button class="order-item-remove" onclick="POS._adminDeleteRecipeIngredient(${selectedItem.id}, ${ing.id})" 
-                                                    style="width:20px;height:20px;font-size:10px;color:var(--danger);" title="${__('item.remove.btn')}">✕</button>
-                                            </div>
+                    <!-- Список ингредиентов в рецепте -->
+                    <div style="margin-bottom:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px;">
+                        <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--text-secondary);">${POS.icn('file-text', '14px')} ${__('admin.warehouse.recipe.composition')}</div>
+                        <div style="display:flex;flex-direction:column;gap:6px;" id="adm-recipe-ingredients-list">
+                            ${currentRecipe && currentRecipe.ingredients.length > 0 ? currentRecipe.ingredients.map(req => {
+                                const ing = Warehouse.ingredients.find(i => i.id === req.ingredientId);
+                                if (!ing) return '';
+                                return `
+                                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;background:var(--bg-base);padding:6px 10px;border-radius:4px;border:1px solid var(--border-subtle);">
+                                        <span style="font-weight:600;">${ing.name}</span>
+                                        <div style="display:flex;align-items:center;gap:8px;">
+                                            <input type="number" step="0.001" style="width:70px;text-align:center;padding:2px 4px;font-size:12px;"
+                                                class="form-input adm-recipe-qty-input" data-ing-id="${ing.id}" value="${req.amount}"
+                                                onchange="POS._adminUpdateRecipeQty(${selectedItem.id}, ${ing.id}, this.value)">
+                                            <span style="color:var(--text-secondary);font-size:11px;width:30px;">${ing.unit}</span>
+                                            <button class="order-item-remove" onclick="POS._adminDeleteRecipeIngredient(${selectedItem.id}, ${ing.id})"
+                                                style="width:20px;height:20px;font-size:10px;color:var(--danger);" title="${__('item.remove.btn')}">✕</button>
                                         </div>
-                                    `;
-                                }).join('') : '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px 0;">' + __('admin.warehouse.recipe.empty') + '</div>'}
-                            </div>
+                                    </div>
+                                `;
+                            }).join('') : '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px 0;">' + __('admin.warehouse.recipe.empty') + '</div>'}
                         </div>
+                    </div>
 
-                        <!-- Добавить ингредиент в рецепт -->
-                        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;">
-                            <div style="font-weight:600;font-size:11px;margin-bottom:8px;color:var(--text-secondary);">${POS.icn('plus', '12px')} ${__('admin.warehouse.recipe.add')}</div>
-                            <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;">
-                                <div style="display:flex;flex-direction:column;gap:4px;">
-                                    <label style="font-size:10px;font-weight:600;color:var(--text-secondary);">Ингредиент</label>
-                                    <select class="form-input" id="adm-recipe-new-ing" style="font-size:12px;height:34px;">
-                                        ${Warehouse.ingredients
-                                            .filter(i => !currentRecipe || !currentRecipe.ingredients.some(req => req.ingredientId === i.id))
-                                            .map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div style="display:flex;flex-direction:column;gap:4px;">
-                                    <label style="font-size:10px;font-weight:600;color:var(--text-secondary);">Расход</label>
-                                    <input type="number" step="0.001" class="form-input" id="adm-recipe-new-qty" placeholder="0.1" value="0.1" style="font-size:12px;height:34px;">
-                                </div>
-                                <button class="btn btn-sm btn-primary" onclick="POS._adminAddRecipeIngredient(${selectedItem.id})" style="height:34px;">${POS.icn('plus', '14px')} Добавить</button>
+                    <!-- Добавить ингредиент в рецепт -->
+                    <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;">
+                        <div style="font-weight:600;font-size:11px;margin-bottom:8px;color:var(--text-secondary);">${POS.icn('plus', '12px')} ${__('admin.warehouse.recipe.add')}</div>
+                        <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:end;">
+                            <div style="display:flex;flex-direction:column;gap:4px;">
+                                <label style="font-size:10px;font-weight:600;color:var(--text-secondary);">Ингредиент</label>
+                                <select class="form-input" id="adm-recipe-new-ing" style="font-size:12px;height:34px;">
+                                    ${Warehouse.ingredients
+                                        .filter(i => !currentRecipe || !currentRecipe.ingredients.some(req => req.ingredientId === i.id))
+                                        .map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('')}
+                                </select>
                             </div>
+                            <div style="display:flex;flex-direction:column;gap:4px;">
+                                <label style="font-size:10px;font-weight:600;color:var(--text-secondary);">Расход</label>
+                                <input type="number" step="0.001" class="form-input" id="adm-recipe-new-qty" placeholder="0.1" value="0.1" style="font-size:12px;height:34px;">
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="POS._adminAddRecipeIngredient(${selectedItem.id})" style="height:34px;">${POS.icn('plus', '14px')} Добавить</button>
                         </div>
+                    </div>
 
-                        <!-- Кнопка сохранения -->
-                        <button class="btn btn-primary" onclick="POS._adminSaveRecipe(${selectedItem.id})" style="width:100%;">${POS.icn('check', '14px')} ${__('admin.warehouse.recipe.save.btn')}</button>
-                    ` : `
-                        <div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
-                            <span style="font-size:36px;">📋</span>
-                            <p style="margin-top:10px;font-size:13px;">${__('admin.warehouse.recipe.help')}</p>
-                        </div>
-                    `}
+                    <!-- Кнопка сохранения -->
+                    <button class="btn btn-primary" onclick="POS._adminSaveRecipe(${selectedItem.id})" style="width:100%;">${POS.icn('check', '14px')} ${__('admin.warehouse.recipe.save.btn')}</button>
                 </div>
             </div>
         `;
     },
 
-    _adminSelectRecipeDish(menuItemId) {
+    _adminOpenRecipeModal(menuItemId) {
         this._recipeSelectedMenuItemId = menuItemId;
+        const overlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('modal-content');
+        if (!overlay || !modal) return;
+        modal.innerHTML = this._adminRecipeModalContent(menuItemId);
+        overlay.classList.add('active');
+    },
+
+    _adminRefreshRecipeModal() {
+        if (!this._recipeSelectedMenuItemId) return;
+        const modal = document.getElementById('modal-content');
+        if (!modal) return;
+        modal.innerHTML = this._adminRecipeModalContent(this._recipeSelectedMenuItemId);
+    },
+
+    _adminCloseRecipeModal() {
+        this._recipeSelectedMenuItemId = null;
+        const modal = document.getElementById('modal-content');
+        if (modal) modal.innerHTML = '';
         this.showAdminPanel('warehouse');
     },
 
@@ -6883,7 +7124,7 @@ const POS = {
         }
 
         card.ingredients.push({ ingredientId: ingId, amount: qty });
-        this.showAdminPanel('warehouse');
+        this._adminRefreshRecipeModal();
         this.showToast(__('toast.recipe.added'), 'info');
     },
 
@@ -6906,7 +7147,7 @@ const POS = {
         const card = Warehouse.techCards.find(tc => tc.menuItemId === menuItemId);
         if (card) {
             card.ingredients = card.ingredients.filter(r => r.ingredientId !== ingredientId);
-            this.showAdminPanel('warehouse');
+            this._adminRefreshRecipeModal();
             this.showToast(__('toast.recipe.deleted'), 'info');
         }
     },
@@ -6919,7 +7160,7 @@ const POS = {
             await DB.put('tech_cards', recipePayload);
             await Warehouse.init();
             this.showToast(__('toast.recipe.saved'), 'success');
-            this.showAdminPanel('warehouse');
+            this._adminRefreshRecipeModal();
         } catch (e) {
             this.showToast(__('toast.recipe.failed'), 'error');
         }
@@ -7962,23 +8203,29 @@ td { border: 1px solid #ddd; padding: 6px; }
             if (Array.isArray(d.staff) && d.staff.length > 0) this.staff = d.staff;
             if (Array.isArray(d.tables)) this.tables = d.tables;
             }
+            // Deduplicate menu by id
+            if (Array.isArray(this.menu)) {
+                const menuSeen = new Set();
+                this.menu = this.menu.filter(m => {
+                    if (!m.id || menuSeen.has(m.id)) return false;
+                    menuSeen.add(m.id);
+                    return true;
+                });
+            }
+            // Deduplicate categories by id
+            if (Array.isArray(this.categories)) {
+                const catSeen = new Set();
+                this.categories = this.categories.filter(c => {
+                    if (!c.id || catSeen.has(c.id)) return false;
+                    catSeen.add(c.id);
+                    return true;
+                });
+                if (!this.categories.find(c => c.id === 'all')) {
+                    this.categories.unshift({ id: 'all', name: 'Всё', emoji: 'clipboard' });
+                }
+            }
             this._migrateOldIcons();
-            this._clearOldTestData();
         } catch (_) {}
-    },
-
-    _clearOldTestData() {
-        if (!Array.isArray(this.menu) || this.menu.length === 0) return;
-        const isOldTestData = this.menu.some(m =>
-            typeof m.name === 'string' &&
-            ['Шурпа из баранины', 'Мастава', 'Лагман', 'Угра-ош', 'Плов Праздничный', 'Плов Самаркандский'].includes(m.name)
-        );
-        if (isOldTestData) {
-            this.menu = [];
-            this.categories = [];
-            this.modifiers = [];
-            this._saveMenuData();
-        }
     },
 
     _migrateOldIcons() {
@@ -8009,6 +8256,15 @@ td { border: 1px solid #ddd; padding: 6px; }
     /* ======================== LOGOUT ======================== */
     async logout() {
         if (!(await this._confirm(__('toast.logout.confirm')))) return;
+        this.state.loggedIn = false;
+        this.state.vcrUsername = '';
+        this.state.vcrPassword = '';
+        this.saveState();
+        this._showLoading();
+        this._runLoadingSequence();
+    },
+
+    _switchRole() {
         this.state.loggedIn = false;
         this.saveState();
         this.showLogin();
@@ -8112,6 +8368,11 @@ td { border: 1px solid #ddd; padding: 6px; }
             }
             body.appendChild(item);
         });
+        const switchItem = document.createElement('button');
+        switchItem.className = 'sidebar-item';
+        switchItem.innerHTML = `<span class="sidebar-item-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>${__('login.switch.role') || 'Сменить роль'}</span>`;
+        switchItem.onclick = () => { POS._switchRole(); POS.closeMobileMenu(); };
+        body.appendChild(switchItem);
         const statusIndicator = document.querySelector('.header-right > .status-indicator');
         if (statusIndicator) {
             const item = document.createElement('div');
@@ -8181,5 +8442,6 @@ td { border: 1px solid #ddd; padding: 6px; }
 };
 
 document.addEventListener('DOMContentLoaded', () => POS.init());
+
 
 

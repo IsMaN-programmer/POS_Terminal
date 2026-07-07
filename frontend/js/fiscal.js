@@ -31,12 +31,14 @@ const FiscalAPI = {
 
     config: {
         vcrUrl: 'http://127.0.0.1:5614',
+        vcrDriverUrl: 'http://127.0.0.1:5614',
         vcrUsername: 'isardor',
         vcrPassword: 'sardor123',
         vcrTerminalId: 'LG420211640998',
         vcrEnabled: true,          
         timeout: 15000,            
         mockMode: false,            
+        vcrFiscalModuleFactoryId: '',
 
         token: '',                 
     },
@@ -204,9 +206,22 @@ const FiscalAPI = {
             const fmRes = await this._request('GET', '/api/v1/fiscal-module', null, true);
             let termId = this.config.vcrTerminalId;
             let fmConnected = false;
+            let factoryId = this.config.vcrFiscalModuleFactoryId || '';
             if (fmRes && fmRes.success && Array.isArray(fmRes.data) && fmRes.data.length > 0) {
-                termId = fmRes.data[0].terminalId || termId;
                 fmConnected = true;
+                if (!factoryId) factoryId = fmRes.data[0].FactoryID || fmRes.data[0].factoryId || '';
+                if (!factoryId) factoryId = fmRes.data[0].FactoryID || '';
+                const fmTermId = fmRes.data[0].TerminalID || fmRes.data[0].terminalId || '';
+                if (fmTermId) termId = fmTermId;
+            }
+            if (!termId && factoryId) {
+                try {
+                    const info = await this.getFiscalModuleInfo(factoryId);
+                    if (info && info.terminalId) {
+                        termId = info.terminalId;
+                        this.config.vcrTerminalId = info.terminalId;
+                    }
+                } catch (_) {}
             }
 
             const userRes = await this._request('GET', '/api/v1/user');
@@ -259,6 +274,148 @@ const FiscalAPI = {
         }
     },
 
+    async getFiscalModuleInfo(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/FiscalMemory/Info/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const info = data?.data || data || {};
+            return {
+                terminalId: info.TerminalID || info.terminalId || info.terminal_id || '',
+                cplc: info.CPLC || info.cplc || '',
+                locked: info.Locked || info.locked || false,
+                appletVersion: info.AppletVersion || info.appletVersion || '',
+                mode: info.Mode ?? info.mode,
+                posAuth: info.POSAuth ?? info.posAuth ?? false,
+                posLocked: info.POSLocked ?? info.posLocked ?? false,
+                raw: info
+            };
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось получить информацию о ФМ:', e.message);
+            return null;
+        }
+    },
+
+    async getFiscalDriveInfo(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/Info/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+            return list.length > 0 ? {
+                description: list[0].Description || list[0].description || '',
+                factoryId: list[0].FactoryID || list[0].factoryId || '',
+                readerName: list[0].ReaderName || list[0].readerName || '',
+                atr: list[0].ATR || list[0].atr || '',
+                raw: list[0]
+            } : null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось получить информацию о драйвере ФМ:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveZReportOpen(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/ZReport/Open/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            return res.ok;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка открытия Z-отчёта:', e.message);
+            return false;
+        }
+    },
+
+    async fiscalDriveZReportClose(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/ZReport/Close/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const info = data?.data || data || {};
+            return {
+                openTime: info.OpenTime || info.openTime || '',
+                closeTime: info.CloseTime || info.closeTime || '',
+                firstReceiptSeq: info.FirstReceiptSeq ?? info.firstReceiptSeq,
+                lastReceiptSeq: info.LastReceiptSeq ?? info.lastReceiptSeq,
+                terminalId: info.TerminalID || info.terminalId || '',
+                totalSaleCount: info.TotalSaleCount ?? info.totalSaleCount,
+                totalRefundCount: info.TotalRefundCount ?? info.totalRefundCount,
+                totalCash: info.TotalCash || info.totalCash || {},
+                totalCard: info.TotalCard || info.totalCard || {},
+                totalVAT: info.TotalVAT || info.totalVAT || {},
+                raw: info
+            };
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка закрытия Z-отчёта:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveZReportInfo(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/ZReport/Info/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка получения информации о Z-отчёте:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveSyncZReports(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Sync/ZReports/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            return res.ok;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка синхронизации Z-отчётов:', e.message);
+            return false;
+        }
+    },
+
+    async fiscalDriveDBResendFullReceipts(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Resend/FullReceipts/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            return res.ok;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка переотправки полных чеков:', e.message);
+            return false;
+        }
+    },
+
     async registerReceipt(receipt) {
         console.log('[ФискалAPI] 🧾 Регистрация чека в ВКК:', receipt.receiptId);
 
@@ -271,6 +428,8 @@ const FiscalAPI = {
             if (!this.config.token) {
                 await this._login();
             }
+
+            const factoryId = this.config.vcrFiscalModuleFactoryId || '';
 
             let shiftRes = await this._request('GET', '/api/v1/shift');
             let shiftId = null;
@@ -286,9 +445,23 @@ const FiscalAPI = {
             if (!shiftId) throw new Error('Не удалось получить или открыть смену в ВКК');
 
             const zInfo = await this._request('GET', '/api/v1/fiscal-module/z-report/info?Index=0');
-            if (zInfo?.data && !zInfo.data.openedTime) {
-                console.log('[ФискалAPI] 📊 Z-отчет на ФМ закрыт. Открываем...');
-                await this._request('GET', '/api/v1/fiscal-module/z-report/open');
+            const zData = zInfo?.data || zInfo || {};
+            const zOpenTime = zData.OpenTime || zData.openTime || zData.openedTime || '';
+            const zCloseTime = zData.CloseTime || zData.closeTime || zData.closedTime || '';
+            if (!zOpenTime || zCloseTime) {
+                console.log('[ФискалAPI] 📊 Z-отчёт на ФМ закрыт или не открыт. Открываем...');
+                const opened = await this._request('GET', '/api/v1/fiscal-module/z-report/open');
+                if ((!opened || !opened.success) && factoryId) {
+                    console.log('[ФискалAPI] 📊 Пробуем открыть Z-отчёт напрямую через драйвер...');
+                    await this.fiscalDriveZReportOpen(factoryId);
+                }
+                const reopenCheck = await this._request('GET', '/api/v1/fiscal-module/z-report/info?Index=0');
+                const reData = reopenCheck?.data || reopenCheck || {};
+                const reClosed = reData.CloseTime || reData.closeTime || reData.closedTime || '';
+                if (reClosed) {
+                    console.warn('[ФискалAPI] ⚠️ Z-отчёт всё ещё закрыт. Пробуем повторно через драйвер...');
+                    if (factoryId) await this.fiscalDriveZReportOpen(factoryId);
+                }
             }
 
             const drafts = await this._request('GET', `/api/v1/receipt?shiftId=${shiftId}`);
@@ -445,11 +618,25 @@ const FiscalAPI = {
             } catch (_) {}
 
             console.log('[ФискалAPI] 🔑 Запуск фискализации...');
-            const regRes = await this._request('POST', '/api/v1/receipt/register', {
+            let regRes = await this._request('POST', '/api/v1/receipt/register', {
                 id: receiptId,
                 receiptTypeId: receiptTypeId,
                 operationTypeId: 0 
             });
+
+            if (!regRes || !regRes.success) {
+                const errCode = regRes?.error?.code || '';
+                if (errCode === '9023' || errCode === 'ZREPORT_IS_ALREADY_CLOSED' || (regRes?.error?.errorMessage || '').includes('ZREPORT_IS_ALREADY_CLOSED')) {
+                    console.warn('[ФискалAPI] ⚠️ Z-отчёт закрыт при попытке регистрации. Открываем и повторяем...');
+                    await this._request('GET', '/api/v1/fiscal-module/z-report/open');
+                    if (factoryId) await this.fiscalDriveZReportOpen(factoryId);
+                    regRes = await this._request('POST', '/api/v1/receipt/register', {
+                        id: receiptId,
+                        receiptTypeId: receiptTypeId,
+                        operationTypeId: 0
+                    });
+                }
+            }
 
             if (!regRes || !regRes.success) {
                 throw new Error('Ошибка фискализации: ' + this._errorMessage(regRes?.error?.code, regRes?.error?.errorMessage || 'unknown'));
@@ -503,6 +690,7 @@ const FiscalAPI = {
         }
 
         try {
+            const factoryId = this.config.vcrFiscalModuleFactoryId || '';
             
             let shiftRes = await this._request('GET', '/api/v1/shift');
             let shiftId = null;
@@ -511,11 +699,20 @@ const FiscalAPI = {
             }
 
             console.log('[ФискалAPI] 📊 Закрытие Z-отчета...');
-            await this._request('GET', '/api/v1/fiscal-module/z-report/close');
+            const zCloseRes = await this._request('GET', '/api/v1/fiscal-module/z-report/close');
+            if (!zCloseRes && factoryId) {
+                console.log('[ФискалAPI] 📊 Пробуем закрыть Z-отчёт напрямую через драйвер...');
+                await this.fiscalDriveZReportClose(factoryId);
+            }
 
             if (shiftId) {
                 console.log('[ФискалAPI] 📂 Закрытие смены в кассе...');
                 await this._request('PUT', `/api/v1/shift/close/${shiftId}`);
+            }
+
+            if (factoryId) {
+                console.log('[ФискалAPI] 🔄 Синхронизация Z-отчётов с ФМ...');
+                await this.fiscalDriveSyncZReports(factoryId);
             }
 
             return {
@@ -599,6 +796,291 @@ const FiscalAPI = {
         console.warn('[ФискалAPI] 📱 QR-код:', result.qrCodeUrl);
 
         return result;
+    },
+
+    async getFiscalModuleList() {
+        // Try REST API first (no auth required for module enumeration)
+        try {
+            const restRes = await this._request('GET', '/api/v1/fiscal-module', null, true);
+            if (restRes && restRes.success && Array.isArray(restRes.data) && restRes.data.length > 0) {
+                return restRes.data.map(fm => ({
+                    atr: fm.ATR || '',
+                    appletVersion: fm.AppletVersion || '',
+                    description: fm.Description || fm.description || '',
+                    factoryId: fm.FactoryID || fm.factoryId || '',
+                    readerName: fm.ReaderName || fm.readerName || '',
+                    terminalId: fm.TerminalID || fm.terminalId || ''
+                }));
+            }
+        } catch (e) {
+            console.warn('[ФискалAPI] REST API модулей недоступен, пробуем драйвер:', e.message);
+        }
+
+        // Fall back to driver API
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/List`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+            return list.map(fm => ({
+                atr: fm.ATR || '',
+                appletVersion: fm.AppletVersion || '',
+                description: fm.Description || '',
+                factoryId: fm.FactoryID || '',
+                readerName: fm.ReaderName || ''
+            }));
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось получить список ФМ:', e.message);
+            return [];
+        }
+    },
+
+    async fiscalDriveDBFileCount() {
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Count`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось получить количество файлов БД:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveDBFileList(factoryId, limit = 10, offset = 0) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/List/${factoryId}/${limit}/${offset}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const json = await res.json();
+            return json?.data || json || null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось получить список файлов БД:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveDBStatusReset() {
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Status/Reset`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const json = await res.json();
+            return json?.data || json || null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Не удалось сбросить статус БД:', e.message);
+            return null;
+        }
+    },
+
+    /* ---- POS Auth endpoints ---- */
+    async posChallenge(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/POS/Challenge/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка POS/Challenge:', e.message);
+            return null;
+        }
+    },
+
+    async posAuth(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/POS/Auth/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка POS/Auth:', e.message);
+            return null;
+        }
+    },
+
+    async posLock(factoryId, receiptData) {
+        if (!factoryId || !receiptData) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/POS/Lock/${factoryId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(receiptData)
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка POS/Lock:', e.message);
+            return null;
+        }
+    },
+
+    async authSignChallenge(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/Auth/SignChallenge/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка Auth/SignChallenge:', e.message);
+            return null;
+        }
+    },
+
+    /* ---- FiscalDrive State & Receipt endpoints ---- */
+    async fiscalDriveStateSync(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/State/Sync/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка FiscalDrive/State/Sync:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveReceiptGetTXID(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/Receipt/GetTXID/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const info = data?.data || data || {};
+            return {
+                receiptSeq: info.ReceiptSeq ?? info.receiptSeq,
+                fiscalSign: info.FiscalSign || info.fiscalSign || '',
+                operationType: info.OperationType || info.operationType || '',
+                receiptType: info.ReceiptType || info.receiptType || '',
+                receivedCash: info.ReceivedCash ?? info.receivedCash,
+                receivedCard: info.ReceivedCard ?? info.receivedCard,
+                totalVAT: info.TotalVAT ?? info.totalVat ?? info.totalVAT,
+                terminalId: info.TerminalID || info.terminalId || '',
+                time: info.Time || info.time || '',
+                itemsCount: info.ItemsCount ?? info.itemsCount,
+                itemsHash: info.ItemsHash || info.itemsHash || '',
+                extra: info.Extra || info.extra || ''
+            };
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка FiscalDrive/Receipt/GetTXID:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveReceiptInfo(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/Receipt/Info/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка FiscalDrive/Receipt/Info:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveReceiptRegisterTXID(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/Receipt/RegisterTXID/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка FiscalDrive/Receipt/RegisterTXID:', e.message);
+            return null;
+        }
+    },
+
+    /* ---- ZReport extra endpoints ---- */
+    async fiscalDriveZReportUnacknowledgedIndexes(factoryId) {
+        if (!factoryId) return null;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/FiscalDrive/ZReport/UnackowledgedIndexes/${factoryId}`, {
+                method: 'GET', headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.data ?? data ?? null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка ZReport/UnackowledgedIndexes:', e.message);
+            return null;
+        }
+    },
+
+    async fiscalDriveSyncFullReceipts(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Sync/FullReceipts/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            return res.ok;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка синхронизации полных чеков:', e.message);
+            return false;
+        }
+    },
+
+    async fiscalDriveSyncReceipts(factoryId) {
+        if (!factoryId) return false;
+        try {
+            const base = (this.config.vcrDriverUrl || this.config.vcrUrl || 'http://127.0.0.1:5614').replace(/\/+$/, '');
+            const res = await fetch(`${base}/DataBase/Files/Sync/Receipts/${factoryId}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const json = await res.json();
+            return json?.data || json || null;
+        } catch (e) {
+            console.warn('[ФискалAPI] ⚠️ Ошибка синхронизации чеков:', e.message);
+            return null;
+        }
     },
 
     async getPrinters() {

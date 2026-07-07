@@ -150,6 +150,28 @@ const DB = {
         });
     },
 
+    async _getAllLocal(storeName) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) { resolve([]); return; }
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    async _putLocal(storeName, item) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) { resolve(); return; }
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.put(item);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    },
+
     async logAction(action, details, staffName) {
         const logEntry = {
             action,

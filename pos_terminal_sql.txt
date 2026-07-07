@@ -1,0 +1,339 @@
+-- companies definition
+
+CREATE TABLE companies
+(
+    company_id integer not null primary key,
+    filial_id  integer not null,
+    tin        text    not null unique,
+    name       text    not null,
+    short_name text,
+    address    text,
+    phone      text,
+    status     integer not null
+, receipt_footer TEXT, logo_path TEXT);
+
+
+-- fiscal_modules definition
+
+CREATE TABLE fiscal_modules
+(
+    id          integer primary key autoincrement,
+    terminal_id text    not null,
+    factory_id  text    not null,
+    license_id  text,
+    is_locked   integer not null default 0,
+    version     text,
+    status      integer not null default 1,
+    is_deleted  integer not null default 0
+, user_id integer, balance NUMERIC DEFAULT 0);
+
+
+-- HTE_printers definition
+
+CREATE TABLE HTE_printers(id integer, rn_ integer not null, status integer, width integer, hib_sess_id char(36) not null, name varchar(255), receipt_footer varchar(255), primary key (rn_, hib_sess_id));
+
+
+-- HTE_ref_payment_merchants definition
+
+CREATE TABLE HTE_ref_payment_merchants(id integer, ord integer, rn_ integer not null, hib_sess_id char(36) not null, image_path varchar(255), name varchar(255), primary key (rn_, hib_sess_id));
+
+
+-- printers definition
+
+CREATE TABLE "printers"
+(
+    id     integer
+        primary key autoincrement,
+    name   text              not null,
+    width  integer           not null,
+    status integer default 1 not null
+);
+
+
+-- product_counter definition
+
+CREATE TABLE product_counter(updated_id integer, company_id integer default 0 not null, filial_id integer default 0 not null);
+
+
+-- ref_operation_types definition
+
+CREATE TABLE ref_operation_types
+(
+    id           integer   not null primary key autoincrement,
+    name         text      not null,
+    ord          integer   not null default 0
+);
+
+
+-- ref_owner_types definition
+
+CREATE TABLE ref_owner_types
+(
+    id   integer not null primary key autoincrement,
+    name text    not null,
+    ord  integer not null default 0
+);
+
+
+-- ref_payment_merchants definition
+
+CREATE TABLE ref_payment_merchants
+(
+    id         integer not null primary key autoincrement,
+    name       text    not null,
+    image_path text    not null,
+    ord        integer not null default 0
+);
+
+
+-- ref_payment_types definition
+
+CREATE TABLE ref_payment_types
+(
+    id   integer not null primary key autoincrement,
+    name text    not null,
+    ord  integer not null default 0
+);
+
+
+-- ref_receipt_types definition
+
+CREATE TABLE ref_receipt_types
+(
+    id   integer not null primary key autoincrement,
+    name text    not null,
+    ord  integer not null default 0
+);
+
+
+-- users definition
+
+CREATE TABLE users
+(
+    id       integer not null primary key ,
+    role     text    not null,
+    name     text    not null,
+    username text    not null,
+    phone    text
+, pin_code TEXT, pin_time integer, synchronization_time integer, status integer default 0 not null, password TEXT, status_code integer, status_message TEXT);
+
+
+-- ref_categories definition
+
+CREATE TABLE "ref_categories"
+(
+    id         integer           not null
+        primary key autoincrement,
+    parent_id  integer
+        references ref_categories,
+    name       text              not null,
+    short_name text,
+    file_id    text,
+    file_path  text,
+    is_deleted integer default 0 not null,
+    ord        integer default 0
+, company_id integer, filial_id integer);
+
+
+-- ref_extra_functions definition
+
+CREATE TABLE ref_extra_functions(
+                                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                                company_id INTEGER NOT NULL ,
+                                license TEXT NOT NULL ,
+                                name TEXT NOT NULL ,
+                                icon_class TEXT,
+                                sort_order INTEGER,
+                                on_click TEXT,
+                                on_keyup TEXT,
+                                id_name TEXT,
+                                class_name TEXT,
+                                status INTEGER,
+                                begin_date TIMESTAMP,
+                                end_date TIMESTAMP,
+                                is_deleted INTEGER DEFAULT 0,
+                                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                user_id INTEGER,
+                                FOREIGN KEY (company_id) REFERENCES companies(company_id),
+                                FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+
+-- shifts definition
+
+CREATE TABLE shifts
+(
+    id              text primary key,
+    company_id      integer not null references companies (company_id),
+    terminal_id     text    not null,
+    open_date       text    not null default current_timestamp,
+    close_date      text,
+    sent_to_cabinet integer not null default 0,
+    sent_date       text,
+    is_deleted      integer not null default 0,
+    created_date    text    not null default current_timestamp,
+    user_id         integer not null references users (id)
+, z_report_info TEXT);
+
+
+-- products definition
+
+CREATE TABLE products
+(
+    id             integer
+        primary key,
+    category_id    integer               not null
+        references ref_categories,
+    owner_type_id  integer               not null,
+    has_label      boolean default false not null,
+    barcode        text,
+    mxik_code      text                  not null,
+    sku_code       text,
+    name           text                  not null,
+    short_name     text,
+    package_code   text,
+    package_name   text,
+    amount         real    default 0,
+    per_amount     real,
+    buy_price      bigint default 0     not null,
+    sale_price     bigint default 0     not null,
+    vat_percent    real    default 0     not null,
+    vat_sum        integer default 0     not null,
+    commission_tin text,
+    is_deleted     integer default 0     not null,
+    company_id     integer,
+    filial_id      integer,
+    cash_sale INT not null default 0
+);
+
+
+-- receipts definition
+
+CREATE TABLE receipts
+(
+    id                text primary key,
+    company_id        integer not null references companies (company_id),
+    terminal_id       text    not null,
+    shift_id          text    not null references shifts (id),
+    receipt_type_id   integer not null references ref_receipt_types (id),
+    operation_type_id integer not null references ref_operation_types (id),
+    tx_id             integer,
+    receipt_seq       integer,
+    receipt_date      text,
+    fiscal_sign       text,
+    qrcode_url        text,
+    sent_to_ofd       integer,
+    sent_to_cabinet   integer not null default 0,
+    sent_date         text,
+    is_deleted        integer not null default 0,
+    created_date      text    not null default current_timestamp,
+    user_id           integer not null references users (id)
+);
+
+
+-- shift_reports definition
+
+CREATE TABLE shift_reports
+(
+    id                integer primary key autoincrement,
+    shift_id          text not null references shifts (id),
+    operation_type_id integer not null references ref_operation_types (id),
+    payment_type_id   integer not null references ref_payment_types (id),
+    merchant_id       integer references ref_payment_merchants (id),
+    paid_sum          integer not null default 0,
+    receipt_count     integer not null default 0
+);
+
+
+-- favorite_products definition
+
+CREATE TABLE "favorite_products"
+(
+    id         integer not null
+        primary key autoincrement,
+    product_id integer not null
+        unique
+        references products,
+    ord        integer default 0
+);
+
+
+-- payments definition
+
+CREATE TABLE payments
+(
+    id              integer primary key autoincrement,
+    company_id      integer not null references companies (company_id),
+    terminal_id     text    not null,
+    receipt_id      text    not null references receipts (id),
+    payment_type_id integer not null references ref_payment_types (id),
+    merchant_id     integer references ref_payment_merchants (id),
+    is_change       integer not null default 0,
+    paid_sum        bigint not null default 0,
+    status          integer not null default 1,
+    sent_to_cabinet integer not null default 0,
+    sent_date       text,
+    is_deleted      integer not null default 0,
+    created_date    text    not null default current_timestamp,
+    user_id         integer not null references users (id),
+    card_number     text,
+    commentary      text,
+    rrn             text
+);
+
+
+-- product_discounts definition
+
+CREATE TABLE product_discounts
+(
+    id         integer primary key,
+    product_id integer not null references products (id),
+    percent    real    not null default 0,
+    begin_date text,
+    end_date   text,
+    status     integer not null default 0,
+    is_deleted integer not null default 0
+);
+
+
+-- receipt_operations definition
+
+CREATE TABLE receipt_operations
+(
+    receipt_id        text not null references receipts (id),
+    return_receipt_id text not null references receipts (id)
+);
+
+CREATE INDEX idx_receipt_operations_receipt_id
+    ON receipt_operations(receipt_id);
+
+
+-- receipt_products definition
+
+CREATE TABLE "receipt_products"
+(
+    id           text
+        primary key,
+    receipt_id   text              not null
+        references receipts,
+    product_id   integer           not null
+        references products,
+    amount       real              not null,
+    per_amount   real,
+    sale_price   integer default 0 not null,
+    total_price  integer default 0 not null,
+    discount_sum integer,
+    label        text,
+    vat_sum      integer default 0
+, company_id integer, filial_id integer);
+
+CREATE INDEX idx_receipt_products_receipt_id
+    ON receipt_products(receipt_id);
+CREATE INDEX idx_receipt_products_receipt_id_product_id
+    ON receipt_products(receipt_id, product_id);
+CREATE INDEX idx_receipt_products_company_filial_product
+    ON receipt_products(company_id, filial_id, product_id);
+CREATE INDEX idx_receipt_products_product_id
+    ON receipt_products(product_id);
+CREATE INDEX idx_receipt_products_label
+    ON receipt_products(label);

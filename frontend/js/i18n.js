@@ -23,7 +23,7 @@ const I18n = {
 
             // Sidebar
             'sidebar.menu': 'Меню',
-            'sidebar.park': 'Парковка (F4)',
+            'sidebar.park': 'Ожидающие (F4)',
             'sidebar.discount': 'Скидка (F1)',
             'sidebar.service': 'Сервис (F5)',
             'sidebar.availability': 'Наличие (F6)',
@@ -299,6 +299,7 @@ const I18n = {
             'login.pin.label': 'Введите PIN-код',
             'login.pin.error': 'Неверный PIN-код',
             'login.welcome': 'Добро пожаловать,',
+            'login.switch.role': 'Сменить роль',
 
             // Confirm dialog
             'confirm.title': 'Подтверждение',
@@ -380,6 +381,11 @@ const I18n = {
             'admin.warehouse.recipe.add.btn': 'Добавить',
             'admin.warehouse.recipe.save.btn': 'Сохранить тех. карту',
             'admin.warehouse.recipe.help': 'Выберите блюдо в левой панели, чтобы составить его рецептуру (технологическую карту).',
+            'admin.warehouse.recipe.open.btn': 'Тех. карта',
+            'admin.warehouse.recipe.has.ingredients': 'Рецепт составлен',
+            'admin.warehouse.recipe.no.ingredients': 'Рецепт не составлен',
+            'admin.warehouse.recipe.ingredients.count': 'Ингредиентов: {0}',
+            'admin.warehouse.recipe.modal.title': 'Тех. карта:',
             'admin.warehouse.supplier.add': 'Добавить поставщика',
             'admin.warehouse.supplier.name.placeholder': 'Например: BestFood LLC',
             'admin.warehouse.supplier.phone.placeholder': '+998...',
@@ -452,6 +458,7 @@ const I18n = {
             'toast.order.kitchen.remove': 'Заказ уже на кухне — удаление только с админом',
             'toast.order.kitchen.admin': 'Заказ уже на кухне — вызовите администратора',
             'toast.add.order.admin': 'Только официант или админ может добавлять блюда',
+            'toast.stock.exhausted': 'Остаток «{0}» закончился',
             'toast.add.order.cashier': 'Официант или админ отправляет на кухню',
             'toast.only.admin': 'Только кассир или админ',
             'toast.kitchen.no.order': 'Нет заказа для отправки',
@@ -493,9 +500,9 @@ const I18n = {
 
             // Admin menu
             'admin.menu.search': 'Поиск в меню...',
-            'admin.menu.sync.title': 'Синхронизация из ВКК',
+            'admin.menu.sync.title': 'Управление меню',
             'admin.menu.sync.btn': 'Загрузить меню из ВКК',
-            'admin.menu.sync.desc': 'Блюда будут импортированы из ВКК. Затем вы сможете изменить фото, цену и категорию.',
+            'admin.menu.sync.desc': 'Меню управляется локально.',
             'admin.menu.sync.connecting': 'Подключение к ВКК...',
             'admin.menu.add.title': 'Добавить новое блюдо в меню',
             'admin.menu.name': 'Название',
@@ -516,9 +523,9 @@ const I18n = {
 
             // Admin categories
             'admin.cats.search': 'Поиск категорий...',
-            'admin.cats.sync.title': 'Синхронизация категорий из ВКК',
+            'admin.cats.sync.title': 'Управление категориями',
             'admin.cats.sync.btn': 'Загрузить категории из ВКК',
-            'admin.cats.sync.desc': 'Категории будут импортированы из ВКК.',
+            'admin.cats.sync.desc': 'Категории управляются локально.',
             'admin.cats.name': 'Название',
 
             // Admin modifiers
@@ -988,6 +995,7 @@ const I18n = {
             'history.details.item.name': 'Название товара',
             'history.details.price': 'Цена',
             'history.details.qty': 'Кол-во / Объем',
+            'history.details.discount': 'Скидка',
             'history.details.vat': 'НДС (12%)',
             'history.details.total': 'Итоговая сумма',
             'history.details.date': 'Дата:',
@@ -1254,7 +1262,7 @@ const I18n = {
 
             // Sidebar
             'sidebar.menu': 'Menyu',
-            'sidebar.park': 'Parkovka (F4)',
+            'sidebar.park': 'Kutilayotgan (F4)',
             'sidebar.discount': 'Chegirma (F1)',
             'sidebar.service': 'Servis (F5)',
             'sidebar.availability': 'Mavjudlik (F6)',
@@ -1530,6 +1538,7 @@ const I18n = {
             'login.pin.label': 'PIN-kodni kiriting',
             'login.pin.error': 'Noto\'g\'ri PIN-kod',
             'login.welcome': 'Xush kelibsiz,',
+            'login.switch.role': 'Rolni o\'zgartirish',
 
             // Confirm dialog
             'confirm.title': 'Tasdiqlash',
@@ -1611,6 +1620,11 @@ const I18n = {
             'admin.warehouse.recipe.add.btn': 'Qo\'shish',
             'admin.warehouse.recipe.save.btn': 'Tex. kartani saqlash',
             'admin.warehouse.recipe.help': 'Retsept (texnologik karta) tuzish uchun chap panelda taomni tanlang.',
+            'admin.warehouse.recipe.open.btn': 'Tex. karta',
+            'admin.warehouse.recipe.has.ingredients': 'Retsept tuzilgan',
+            'admin.warehouse.recipe.no.ingredients': 'Retsept tuzilmagan',
+            'admin.warehouse.recipe.ingredients.count': 'Ingredientlar: {0}',
+            'admin.warehouse.recipe.modal.title': 'Tex. karta:',
             'admin.warehouse.supplier.add': 'Yetkazib beruvchi qo\'shish',
             'admin.warehouse.supplier.name.placeholder': 'Masalan: BestFood MChJ',
             'admin.warehouse.supplier.phone.placeholder': '+998...',
@@ -1683,6 +1697,7 @@ const I18n = {
             'toast.order.kitchen.remove': 'Buyurtma oshxonada — faqat admin o\'chira oladi',
             'toast.order.kitchen.admin': 'Buyurtma oshxonada — administratorni chaqiring',
             'toast.add.order.admin': 'Faqat ofitsiant yoki admin taom qo\'sha oladi',
+            'toast.stock.exhausted': '«{0}» qoldig\'i tugadi',
             'toast.add.order.cashier': 'Ofitsiant yoki admin oshxonaga yuboradi',
             'toast.only.admin': 'Faqat kassir yoki admin',
             'toast.kitchen.no.order': 'Yuborish uchun buyurtma yo\'q',
@@ -1724,9 +1739,9 @@ const I18n = {
 
             // Admin menu
             'admin.menu.search': 'Menyuda qidirish...',
-            'admin.menu.sync.title': 'VKK dan sinxronizatsiya',
+            'admin.menu.sync.title': 'Menyu boshqaruvi',
             'admin.menu.sync.btn': 'VKK dan menyuni yuklash',
-            'admin.menu.sync.desc': 'Taomlar VKK dan import qilinadi. Keyin fotosurat, narx va kategoriyani o\'zgartirishingiz mumkin.',
+            'admin.menu.sync.desc': 'Menyu mahalliy boshqariladi.',
             'admin.menu.sync.connecting': 'VKK ga ulanish...',
             'admin.menu.add.title': 'Menyuga yangi taom qo\'shish',
             'admin.menu.name': 'Nomi',
@@ -1747,9 +1762,9 @@ const I18n = {
 
             // Admin categories
             'admin.cats.search': 'Kategoriyalarni qidirish...',
-            'admin.cats.sync.title': 'VKK dan kategoriyalarni sinxronizatsiya',
+            'admin.cats.sync.title': 'Kategoriya boshqaruvi',
             'admin.cats.sync.btn': 'VKK dan kategoriyalarni yuklash',
-            'admin.cats.sync.desc': 'Kategoriyalar VKK dan import qilinadi.',
+            'admin.cats.sync.desc': 'Kategoriyalar mahalliy boshqariladi.',
             'admin.cats.name': 'Nomi',
 
             // Admin modifiers
@@ -2219,6 +2234,7 @@ const I18n = {
             'history.details.item.name': 'Tovar nomi',
             'history.details.price': 'Narxi',
             'history.details.qty': 'Miqdori / Hajmi',
+            'history.details.discount': 'Chegirma',
             'history.details.vat': 'QQS (12%)',
             'history.details.total': 'Yakuniy summa',
             'history.details.date': 'Sana:',

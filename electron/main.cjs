@@ -56,9 +56,12 @@ function createWindow() {
   });
 
   win.maximize();
-  win.loadURL(`http://localhost:${PORT}`);
+
+  // Show splash screen immediately while server starts
+  win.loadFile(path.join(__dirname, 'splash.html'));
 
   win.webContents.on('did-finish-load', () => {
+    // After main app page loads, update preload overlay
     let i = 0;
     const iv = setInterval(() => {
       if (i < steps.length) {
@@ -91,11 +94,14 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  console.log('[electron] Creating window...');
+  createWindow();
+
   try {
     console.log('[electron] Starting server...');
     await startServer();
-    console.log('[electron] Server ready, creating window...');
-    createWindow();
+    console.log('[electron] Server ready, loading main app...');
+    win.loadURL(`http://localhost:${PORT}`);
   } catch (err) {
     console.error('[electron] Error:', err);
     dialog.showErrorBox('POS Terminal', 'Ошибка запуска:\n' + err.message);
